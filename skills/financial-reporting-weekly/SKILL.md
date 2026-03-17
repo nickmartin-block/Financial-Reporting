@@ -1,102 +1,158 @@
 ---
 name: financial-reporting-weekly
-description: Weekly financial report sub-agent for Block FP&A. Reads the master Google Sheet, creates a new dated tab in the weekly report Google Doc, populates tables and metric fact lines, and inserts placeholders for missing data and driver context. Use when Nick says "data is ready, run the weekly report." Must be loaded with the financial-reporting skill (global recipe).
+description: Weekly financial report domain knowledge for Block FP&A. Defines section structure, table specs, emoji logic, and 3/10 canonical reference. Depends on financial-reporting global recipe.
 depends-on: [financial-reporting, gdrive]
-allowed-tools: [Bash(uv:*), Read]
 metadata:
   author: nmart
-  version: "1.0.0"
-  status: "beta"
+  version: "2.0.0"
+  status: "active"
 ---
 
-# Weekly Report Sub-Agent
+# Weekly Performance Digest — Domain Knowledge
 
-## Prerequisites
-Before running any step, verify auth: `cd ~/skills/gdrive && uv run gdrive-cli.py auth status`
-If not authenticated, run `uv run gdrive-cli.py auth login` and stop.
+This skill defines WHAT goes in the report. The agent handles HOW to execute it.
+All style, formatting, and number rules come from the global recipe (`financial-reporting`).
 
-## Trigger
-Manual only. Nick will say: **"data is ready, run the weekly report."**
-Never self-initiate. Never run on a schedule.
+---
+
+## Canonical Reference: 3/10 Tab
+
+The 3/10 tab (`t.kock4ypqjpk6`) in the Weekly Report Doc is the gold standard.
+Every new tab must mirror its structure: section order, heading names, table layout, fact line style.
+Do not read the 3/10 tab at runtime — the structure is fully defined here.
+
+---
 
 ## Inputs
+
 - **Master Google Sheet:** `1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4`
-  https://docs.google.com/spreadsheets/d/1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4/edit
 - **Weekly Report Google Doc:** `1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0`
-  https://docs.google.com/document/d/1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0/edit
+- **Sheet tab to read:** `summary` (use `--sheet summary` — do not read `--all-sheets`)
 
-## Workflow
+---
 
-**Step 1 — Load and internalize the global recipe**
-The `financial-reporting` skill is already loaded via `depends-on`. Confirm all style rules,
-metric formats, comparison points, and deviation handling are active. These may not be overridden.
+## Emoji Logic
 
-**Step 2 — Determine the comparison point**
-Identify the current quarter and apply the correct forecast label:
+Apply to each metric's **delta vs. [Forecast]** only — never to YoY:
 
-| Quarter | Comparison Point |
-|---------|-----------------|
-| Q1      | AP              |
-| Q2      | Q2OL            |
-| Q3      | Q3OL            |
-| Q4      | Q4OL            |
+| Delta vs. [Forecast] | Emoji |
+|----------------------|-------|
+| > +0.5%              | 🟢    |
+| −0.5% to +0.5%       | 🟡    |
+| < −0.5%              | 🔴    |
 
-Use this label wherever `[Forecast]` appears in metric format templates.
+- Month-level metrics → use monthly pacing delta
+- Quarter-level metrics → use QTD pacing delta
+- bps metrics (monetization rate) → same thresholds in bps
 
-**Step 3 — Read the master Google Sheet**
-```bash
-cd ~/skills/gdrive && uv run gdrive-cli.py read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4
-```
-- Identify all metrics (rows) and time periods (columns)
-- Note which periods are closed (actuals) vs. open (pacing)
-- Note available benchmarks: internal forecast, consensus, guidance
+---
 
-**Step 4 — Review prior weeks in the report Doc**
-```bash
-cd ~/skills/gdrive && uv run gdrive-cli.py docs tabs 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0
-```
-Read the most recent 2–3 tabs (e.g., '3/3', '2/24', '2/17') to understand:
-- Section structure and order
-- Level of detail in fact lines
-- Table placement vs. narrative blocks
+## Report Structure
 
-**Step 5 — Create a new tab for this week**
-Label the new tab with this Tuesday's date (e.g., '3/10').
-Use the prior week's tab as the structural template — copy the layout exactly.
+Five sections, in this order:
 
-**Step 6 — Populate the report**
-For each section:
-1. Copy updated data tables from the Sheet into the Doc (exact values, no reformatting beyond global recipe rules)
-2. For each metric, write a fact line using the correct format:
-   - **Pacing:** `[Metric] is pacing to [Value] in [Period] ([+/-]% YoY), [+/-]% ([+/-$]) [above/below] [Forecast]`
-   - **Actuals:** `[Metric] landed at [Value] ([+/-]% YoY), [+/-]% ([+/-$]) [above/below] [Forecast]`
-3. After any fact line where driver context is needed, insert on a new line:
-   **Nick to fill out** — formatted in red (hex #ea4335) in the Google Doc
-4. For any missing data, insert:
-   `[DATA MISSING: {metric} | {period}]`
+1. **Summary**
+2. **Overview: Gross Profit Performance**
+3. **Overview: Adjusted Operating Income & Rule of 40**
+4. **Overview: Inflows Framework**
+5. **Overview: Square GPV**
 
-**Step 7 — Report back**
-List:
-- Which sections were populated successfully
-- Which have `[DATA MISSING]` flags and what is missing
-- Which have **Nick to fill out** (red) placeholders inserted
+Each Overview section: table first, then fact lines beneath it.
 
-## What This Agent Does NOT Do
-- Fill in drivers, narrative, or explanations — that is Nick's job
-- Estimate or infer missing data
-- Override any global recipe rule
-- Self-trigger or run automatically
+---
+
+## Section 1 — Summary
+
+The Summary is a narrative block of emoji-prefixed fact lines. Mirror the 3/10 Summary exactly in structure and flow:
+
+- Opens with **Topline** (Block GP QTD and monthly pacing, above/below [Forecast] and guidance)
+- Then **Square GPV** block (global + US + International sub-lines)
+- Then individual Cash App metric lines (Cash ex-Commerce GP, Lending, Non-Lending)
+- Then **Inflows Framework** block (Actives, Inflows per active, Monetization rate, Commerce lines, Proto)
+- Closes with **Profitability** (AOI QTD and monthly, Rule of 40)
+
+After each major block where driver context would normally follow, insert `Nick to fill out` on a new line (will be colored red by the agent in a later step).
+
+---
+
+## Section 2 — Overview: Gross Profit Performance
+
+**Table columns:** Metric | Jan'26 Actual | Feb'26 Actual | Mar'26 Pacing | Q1'26 Pacing | Q1 AP | Q1 Guidance | Q1 Consensus
+
+Omit Guidance or Consensus columns if unavailable for that metric. Use `--` for N/A cells.
+
+**Table row groups:**
+- Block gross profit / YoY Growth (%) / Delta vs. AP (%)
+- Cash App gross profit / YoY Growth (%) / Delta vs. AP (%)
+- Square gross profit / YoY Growth (%) / Delta vs. AP (%)
+- Proto gross profit / YoY Growth (%) / Delta vs. AP (%)
+- TIDAL gross profit / YoY Growth (%) / Delta vs. AP (%)
+
+Separate each group with a blank row.
+
+**Fact lines (after table):** One per brand — Block GP, Cash App GP, Square GP, Proto GP, TIDAL GP — plus a QTD summary line for Block. Mirror 3/10 wording and order.
+
+---
+
+## Section 3 — Overview: Adjusted Operating Income & Rule of 40
+
+**Table columns:** Metric | Jan'26 Actual | Feb'26 Actual | Mar'26 Pacing | Q1'26 Pacing | Q1 AP | Q1 Guidance | Q1 Consensus
+
+**Table row groups:**
+- Gross profit / YoY Growth (%) / Delta vs. AP (%)
+- Adjusted operating income / Margin (%) / Delta vs. AP (%)
+- Rule of 40 / Delta vs. AP (pts)
+
+**Fact lines (after table):** Monthly AOI (value, margin, delta vs. AP), Rule of 40 for the month, QTD AOI (value, margin, vs. guidance and consensus), QTD Rule of 40.
+
+---
+
+## Section 4 — Overview: Inflows Framework
+
+Two sub-sections: **Cash App (Ex Commerce)** and **Commerce**. Each has its own table and fact lines.
+
+**Cash App (Ex Commerce) table columns:** Metric | Jan'26 Actual | Feb'26 Actual | Mar'26 Pacing | Q1'26 Pacing | Q1 AP | Q1 Consensus
+
+**Cash App row groups:**
+- Actives / YoY Growth (%) / Delta vs. AP (%)
+- Inflows per Active / YoY Growth (%) / Delta vs. AP (%)
+- Monetization rate / YoY Growth (bps) / Delta vs. AP (bps)
+
+**Commerce table columns:** Metric | Jan'26 Actual | Feb'26 Actual | Mar'26 Pacing | Q1'26 Pacing | Q1 AP
+
+**Commerce row groups:**
+- Inflows / YoY Growth (%) / Delta vs. AP (%)
+- Monetization rate / YoY Growth (bps) / Delta vs. AP (bps)
+
+---
+
+## Section 5 — Overview: Square GPV
+
+**Table columns:** Metric | Jan'26 Actual | Feb'26 Actual | Mar'26 Pacing | Q1'26 Pacing | Q1 AP | Q1 Consensus
+
+**Table row groups:**
+- Global GPV / YoY Growth (%) / Delta vs. AP (%)
+- US GPV / YoY Growth (%) / Delta vs. AP (%)
+- International GPV / YoY Growth (%) / Delta vs. AP (%)
+
+**Fact lines (after table):** Global GPV, US GPV, International GPV monthly pacing lines, QTD summary line, GPV-to-GP spread note.
+
+---
 
 ## Metrics in Scope
-Populate fact lines for all of the following (source from Sheet):
+
+Populate emoji, fact line, and table for:
 - Block gross profit
-- Square gross profit
 - Cash App gross profit
-- Square GPV
-- Cash App Inflows
+- Square gross profit
+- Proto gross profit
+- TIDAL gross profit
 - Cash App Monthly Actives
-- Cash App monetization rate
+- Cash App Inflows per Active
+- Cash App monetization rate (ex-Commerce)
 - Commerce Inflows
 - Commerce monetization rate
 - Adjusted Operating Income (AOI)
-- Pacing vs. AP / consensus / guidance (where applicable)
+- Rule of 40
+- Square GPV (Global, US, International)
+- Pacing vs. AP / consensus / guidance where available
