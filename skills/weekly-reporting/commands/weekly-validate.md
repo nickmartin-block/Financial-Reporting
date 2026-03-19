@@ -13,7 +13,7 @@ metadata:
 
 # Weekly Digest — Data Validation
 
-Read and follow all instructions in `~/skills/weekly-validate/SKILL.md`. Load `~/skills/weekly-tables/SKILL.md` for table column mapping and formatting rules.
+Read and follow all instructions in `~/skills/weekly-reporting/skills/weekly-validate.md`. Load `~/skills/weekly-reporting/skills/weekly-tables.md` for table column mapping and formatting rules.
 
 Execute Steps 1–9 from the SKILL.md. Save the validation report to:
 

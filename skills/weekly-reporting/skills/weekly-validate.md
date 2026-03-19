@@ -58,7 +58,7 @@ cd ~/skills/gdrive && uv run gdrive-cli.py docs extract-tables 1FU4In29vR_1pvGy1
 
 ## Step 4 — Build ground truth from the Sheet
 
-Extract values using the column mapping from `~/skills/weekly-tables/SKILL.md` (Steps 3–4). For each metric row, pull:
+Extract values using the column mapping from `~/skills/weekly-reporting/skills/weekly-tables.md` (Steps 3–4). For each metric row, pull:
 
 | Doc Column | Sheet Column Index |
 |---|---|

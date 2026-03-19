@@ -2,7 +2,7 @@
 
 Generate a management-ready Block Performance Digest combining pacing metrics with Cash App commentary from Slack. The output has two layers: a **Summary** (comprehensive emoji-coded narrative) and **Overview** sections (plain-text reference detail, with performance tables).
 
-**Dependencies:** Before generating, read `~/skills/weekly-tables/SKILL.md` for table construction rules (column mapping, row groups, cell formatting). Read `~/skills/financial-reporting/SKILL.md` for global formatting standards.
+**Dependencies:** Before generating, read `~/skills/weekly-reporting/skills/weekly-tables.md` for table construction rules (column mapping, row groups, cell formatting). Read `~/skills/weekly-reporting/skills/financial-reporting.md` for global formatting standards.
 
 ---
 
@@ -133,7 +133,7 @@ Combine the sheet data and Slack message into a markdown file with two layers:
 1. **Summary** — comprehensive emoji-coded narrative (the main content)
 2. **Overview sections** — plain-text fact lines + performance table, NO emojis
 
-Each Overview section includes plain-text fact lines (as separate paragraphs, NOT bullets) followed by a **markdown table** with 3-row header (year/type/month) and a separator column between monthly and quarterly groups. Generate tables following `~/skills/weekly-tables/SKILL.md` (column mapping, row groups, cell formatting). The table data comes from the same sheet read in Step 2 — no additional API calls needed.
+Each Overview section includes plain-text fact lines (as separate paragraphs, NOT bullets) followed by a **markdown table** with 3-row header (year/type/month) and a separator column between monthly and quarterly groups. Generate tables following `~/skills/weekly-reporting/skills/weekly-tables.md` (column mapping, row groups, cell formatting). The table data comes from the same sheet read in Step 2 — no additional API calls needed.
 
 ### Template
 
@@ -329,11 +329,35 @@ If any step in 5.5 fails, skip to Step 6 and report the error. The .md file is a
 
 ---
 
-## Step 6 — Report back
+## Step 6 — Validate
+
+After publishing, validate that every number in the Doc's tables matches the master sheet. Follow the full validation procedure in `~/skills/weekly-reporting/skills/weekly-validate.md`, using `~/skills/weekly-reporting/skills/weekly-tables.md` for column mapping.
+
+Use the tab ID from Step 5.5c (skip the tab identification and confirmation steps — you already know the tab).
+
+**Sheet** (source of truth):
+```bash
+cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4 --sheet summary
+```
+
+**Doc tables** (what we're validating):
+```bash
+cd ~/skills/gdrive && uv run gdrive-cli.py docs extract-tables 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0 --tab TAB_ID
+```
+
+Compare every data cell following the normalization rules and rounding tolerances in the validate skill. Save the validation report to:
+```
+~/Desktop/Nick's Cursor/Weekly Reporting/validation_YYYY-MM-DD.md
+```
+
+---
+
+## Step 7 — Report back
 
 Tell Nick:
 - File path (the .md file)
 - Google Doc link: `https://docs.google.com/document/d/1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0/edit?tab=TAB_ID` (or note if publish failed)
+- **Validation result**: PASS or FAIL (N cells compared, N failures) — include failure details if any
 - How many metrics were auto-populated vs. any `[DATA MISSING]` flags
 - Count of `[MANUAL]` placeholders that need filling (remind Nick to fill these in the Google Doc)
 - Whether the Cash digest was found (and from what date)

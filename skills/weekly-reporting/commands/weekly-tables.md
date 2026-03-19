@@ -15,7 +15,7 @@ metadata:
 
 Generate markdown tables from the master pacing sheet for each Overview section of the Block Performance Digest.
 
-Read and follow all instructions in `~/skills/weekly-tables/SKILL.md`. Load the global recipe from `~/skills/financial-reporting/SKILL.md` for formatting standards.
+Read and follow all instructions in `~/skills/weekly-reporting/skills/weekly-tables.md`. Load the global recipe from `~/skills/weekly-reporting/skills/financial-reporting.md` for formatting standards.
 
 Execute Steps 1–8 from the SKILL.md. Output tables to:
 
