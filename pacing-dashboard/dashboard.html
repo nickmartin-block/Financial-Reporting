@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Block Performance Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f8f9fa;
+      color: #1a1a1a;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* ─── Sticky Header ─── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #1a1a1a;
+      color: #fff;
+      padding: 12px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .header h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .header .quarter-badge {
+      background: #333;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .header .last-updated {
+      font-size: 11px;
+      color: #999;
+    }
+
+    .header .placeholder-badge {
+      background: #d4a017;
+      color: #1a1a1a;
+      padding: 3px 10px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ─── Tab Navigation ─── */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      background: #1a1a1a;
+      padding: 0 32px;
+      border-bottom: 1px solid #333;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      color: #888;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .tab:hover { color: #ccc; }
+
+    .tab.active {
+      color: #fff;
+      border-bottom-color: #fff;
+    }
+
+    /* ─── Main Content ─── */
+    .page { display: none; padding: 24px 32px 48px; max-width: 1200px; margin: 0 auto; }
+    .page.active { display: block; }
+
+    /* ─── Key Takeaways ─── */
+    .takeaways {
+      background: #fff;
+      border: 1px solid #e2e5e9;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+    }
+
+    .takeaways h3 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    .takeaways ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .takeaways li {
+      font-size: 13px;
+      color: #333;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    .takeaways li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 7px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #1a1a1a;
+    }
+
+    .takeaways strong { font-weight: 600; }
+
+    /* ─── Section Headers ─── */
+    .section-header {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin: 28px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #1a1a1a;
+    }
+
+    .section-header:first-of-type { margin-top: 0; }
+
+    /* ─── Scorecard Grid ─── */
+    .scorecard-grid {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .scorecard-grid.block { grid-template-columns: repeat(3, 1fr); }
+    .scorecard-grid.brand { grid-template-columns: repeat(2, 1fr); }
+
+    .scorecard {
+      background: #fff;
+      border: 1px solid #e2e5e9;
+      border-radius: 8px;
+      padding: 16px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .scorecard::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+
+    .scorecard.green::before { background: #007A33; }
+    .scorecard.red::before { background: #CC0000; }
+    .scorecard.neutral::before { background: #999; }
+    .scorecard.blue::before { background: #1a73e8; }
+
+    .badge.blue { background: #e8f0fe; color: #1a73e8; }
+
+    .scorecard .label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .scorecard .value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: -0.5px;
+      line-height: 1.1;
+    }
+
+    .scorecard .secondary-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .scorecard .secondary {
+      font-size: 12px;
+      font-weight: 500;
+      color: #666;
+    }
+
+    .scorecard .badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 3px;
+    }
+
+    .badge.green { background: #e6f4ec; color: #007A33; }
+    .badge.red { background: #fce8e8; color: #CC0000; }
+    .badge.neutral { background: #f0f0f0; color: #666; }
+
+    .scorecard .wow {
+      font-size: 10px;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    /* ─── Data Tables ─── */
+    .data-table-wrapper {
+      background: #fff;
+      border: 1px solid #e2e5e9;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .data-table thead th {
+      background: #1a1a1a;
+      color: #fff;
+      font-weight: 600;
+      font-size: 11px;
+      padding: 8px 12px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .data-table thead th:first-child {
+      text-align: left;
+      padding-left: 16px;
+    }
+
+    .data-table tbody td {
+      padding: 7px 12px;
+      text-align: right;
+      border-bottom: 1px solid #f0f0f0;
+      white-space: nowrap;
+    }
+
+    .data-table tbody td:first-child {
+      text-align: left;
+      font-weight: 500;
+      padding-left: 16px;
+      color: #333;
+    }
+
+    .data-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .data-table tbody tr:hover {
+      background: #fafbfc;
+    }
+
+    /* Pacing column highlight */
+    .data-table .col-pacing {
+      background: #f3f3f3;
+      font-weight: 600;
+    }
+
+    .data-table thead .col-pacing {
+      background: #2a2a2a;
+    }
+
+    /* WoW column */
+    .data-table .col-wow {
+      font-size: 11px;
+      color: #888;
+    }
+
+    /* Signal colors in cells */
+    .cell-green { color: #007A33; font-weight: 600; }
+    .cell-red { color: #CC0000; font-weight: 600; }
+    .cell-neutral { color: #666; }
+    .cell-tbd { color: #bbb; font-style: italic; }
+
+    /* ─── Page 2: FY2026 Outlook ─── */
+    .forward-notice {
+      background: #fff8e1;
+      border: 1px solid #f0e0a0;
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-size: 12px;
+      color: #8a6d00;
+      margin-bottom: 24px;
+    }
+
+    .forward-table-group {
+      margin-bottom: 24px;
+    }
+
+    .forward-table-group h4 {
+      font-size: 12px;
+      font-weight: 700;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 800px) {
+      .scorecard-grid.block { grid-template-columns: 1fr; }
+      .scorecard-grid.brand { grid-template-columns: 1fr; }
+      .page { padding: 16px; }
+      .header { padding: 12px 16px; }
+      .tabs { padding: 0 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ Header ═══ -->
+  <header class="header">
+    <div class="header-left">
+      <h1>Block Performance Dashboard</h1>
+      <span class="quarter-badge" id="quarter-badge">Q1 2026</span>
+      <span class="placeholder-badge" id="placeholder-badge">Placeholder Data</span>
+    </div>
+    <span class="last-updated" id="last-updated">Last updated: --</span>
+  </header>
+
+  <!-- ═══ Tabs ═══ -->
+  <nav class="tabs">
+    <div class="tab active" data-page="page1">Q1 Pacing</div>
+    <div class="tab" data-page="page2">FY2026 Outlook</div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- PAGE 1: Current Quarter Pacing                      -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="page active" id="page1">
+
+    <!-- Key Takeaways -->
+    <div class="takeaways" id="takeaways-p1">
+      <h3>Key Takeaways</h3>
+      <ul>
+        <li><strong>Gross profit</strong> is expected to land at <strong>$2.90B</strong>, +27% YoY, <strong>+$100M vs. consensus</strong></li>
+        <li><strong>Adjusted operating income</strong> is expected to land at <strong>$638M</strong>, 22% margin, <strong>+$27M vs. consensus</strong></li>
+      </ul>
+    </div>
+
+    <!-- Block Scorecard -->
+    <div class="section-header">Block Consolidated</div>
+    <div class="scorecard-grid block" id="block-scorecards"></div>
+
+    <!-- Block Table -->
+    <div class="data-table-wrapper">
+      <table class="data-table" id="block-table"></table>
+    </div>
+
+    <!-- Brand Scorecard -->
+    <div class="section-header">Brand Performance</div>
+    <div class="scorecard-grid brand" id="brand-scorecards"></div>
+
+    <!-- Cash App Table -->
+    <div class="section-header" style="font-size:13px; border-bottom-width:1px; margin-top:20px;">Cash App</div>
+    <div class="data-table-wrapper">
+      <table class="data-table" id="cashapp-table"></table>
+    </div>
+
+    <!-- Square Table -->
+    <div class="section-header" style="font-size:13px; border-bottom-width:1px; margin-top:20px;">Square</div>
+    <div class="data-table-wrapper">
+      <table class="data-table" id="square-table"></table>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- PAGE 2: Forward-Looking View                        -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="page" id="page2">
+
+    <!-- Key Takeaways -->
+    <div class="takeaways">
+      <h3>Key Takeaways</h3>
+      <ul>
+        <li id="fwd-takeaway-1"></li>
+        <li id="fwd-takeaway-2"></li>
+      </ul>
+    </div>
+
+    <!-- Notice -->
+    <div class="forward-notice" id="forward-notice">
+      Q2-Q4 data source not yet connected. Q1 values shown from pacing sheet. Remaining quarters will populate when the consensus tracker spreadsheet is wired up.
+    </div>
+
+    <!-- Quarterly Forecast: Block GP -->
+    <div class="section-header">Quarterly Forecast</div>
+
+    <div class="forward-table-group">
+      <h4>Block Gross Profit</h4>
+      <div class="data-table-wrapper">
+        <table class="data-table" id="fwd-block-gp"></table>
+      </div>
+    </div>
+
+    <div class="forward-table-group">
+      <h4>Adjusted Operating Income</h4>
+      <div class="data-table-wrapper">
+        <table class="data-table" id="fwd-aoi"></table>
+      </div>
+    </div>
+
+    <div class="forward-table-group">
+      <h4>GP Net of Risk Loss</h4>
+      <div class="data-table-wrapper">
+        <table class="data-table" id="fwd-gp-risk"></table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══ Data ═══ -->
+  <script src="dashboard_data.js"></script>
+
+  <!-- ═══ Rendering Logic ═══ -->
+  <script>
+    const D = DASHBOARD_DATA;
+
+    // ─── Header ───
+    document.getElementById('quarter-badge').textContent = `${D.meta.quarter} ${D.meta.year}`;
+    document.getElementById('last-updated').textContent = `Last updated: ${new Date(D.meta.generated_at).toLocaleString()}`;
+    if (!D.meta.is_placeholder) {
+      document.getElementById('placeholder-badge').style.display = 'none';
+    }
+
+    // ─── Tab Navigation ───
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.page).classList.add('active');
+      });
+    });
+
+    // ─── Signal → CSS class ───
+    function signalClass(signal) {
+      if (signal === 'green') return 'green';
+      if (signal === 'red') return 'red';
+      if (signal === 'blue') return 'blue';
+      return 'neutral';
+    }
+
+    function cellClass(value) {
+      if (!value || value === '--' || value === 'nm') return 'cell-neutral';
+      if (value === 'TBD') return 'cell-tbd';
+      const s = String(value);
+      if (s.startsWith('+')) return 'cell-green';
+      if (s.startsWith('-') || s.startsWith('(')) return 'cell-red';
+      return '';
+    }
+
+    // ─── Render Scorecards ───
+    function renderScorecards(containerId, cards) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = cards.map(card => `
+        <div class="scorecard ${signalClass(card.signal)}">
+          <div class="label">${card.label}</div>
+          <div class="value">${card.q1_pacing}</div>
+          <div class="secondary-row">
+            ${card.secondary ? `<span class="secondary">${card.secondary}</span>` : ''}
+            <span class="badge ${signalClass(card.signal)}">${card.badge}</span>
+          </div>
+          <div class="wow">${card.wow ? '&#8593;' + card.wow + ' WoW' : ''}</div>
+        </div>
+      `).join('');
+    }
+
+    // ─── Render Data Table ───
+    function renderTable(tableId, tableData) {
+      const table = document.getElementById(tableId);
+      const cols = tableData.columns;
+      const rows = tableData.rows;
+
+      let html = '<thead><tr>';
+      cols.forEach((col, i) => {
+        const cls = col === 'Q1 Pacing' ? ' class="col-pacing"' : '';
+        html += `<th${cls}>${col}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+
+      rows.forEach(row => {
+        html += '<tr>';
+        // Build cell values in column order
+        const values = buildRowValues(row, cols);
+        values.forEach((val, i) => {
+          const col = cols[i];
+          let cls = '';
+          if (col === 'Q1 Pacing') cls = ' class="col-pacing"';
+          else if (col.includes('WoW')) cls = ' class="col-wow"';
+          else if (col.includes('vs.') || col.includes('Delta')) cls = ` class="${cellClass(val)}"`;
+          else if (col === 'YoY Growth' || col === 'Cons YoY') cls = ` class="${cellClass(val)}"`;
+          html += `<td${cls}>${val}</td>`;
+        });
+        html += '</tr>';
+      });
+
+      html += '</tbody>';
+      table.innerHTML = html;
+    }
+
+    // Map row object to column-ordered values
+    function buildRowValues(row, cols) {
+      return cols.map(col => {
+        if (col === 'Metric') return row.metric;
+        if (col === 'Q1 Pacing') return row.pacing;
+        if (col.includes('WoW')) return row.wow || '--';
+        if (col === 'YoY Growth') return row.yoy;
+        if (col === 'Q1 AP') return row.ap;
+        if (col === 'Q1 Guidance') return row.guidance || '--';
+        if (col === 'Q1 Consensus') return row.consensus || '--';
+        if (col === 'Cons YoY') return row.cons_yoy || '--';
+        if (col === 'vs. Cons') return row.vs_cons || row.vs_comp || '--';
+        return '--';
+      });
+    }
+
+    // ─── Render Forward-Look Tables ───
+    function renderForwardTable(tableId, metric, quarters) {
+      const table = document.getElementById(tableId);
+      const cols = ['Quarter', 'Internal Forecast', 'YoY Growth', 'Consensus', 'Cons YoY', '$ Delta', 'Growth Delta'];
+
+      let html = '<thead><tr>';
+      cols.forEach(col => { html += `<th>${col}</th>`; });
+      html += '</tr></thead><tbody>';
+
+      quarters.forEach(q => {
+        const m = q[metric];
+        const isTbd = m.forecast === 'TBD';
+        html += '<tr>';
+        html += `<td style="font-weight:600">${q.quarter}'26</td>`;
+        html += `<td class="${isTbd ? 'cell-tbd' : 'col-pacing'}">${m.forecast}</td>`;
+        html += `<td class="${isTbd ? 'cell-tbd' : cellClass(m.yoy)}">${m.yoy}</td>`;
+        html += `<td class="${isTbd ? 'cell-tbd' : ''}">${m.consensus}</td>`;
+        html += `<td class="${isTbd ? 'cell-tbd' : cellClass(m.cons_yoy)}">${m.cons_yoy}</td>`;
+        html += `<td class="${cellClass(m.delta_dollar)}">${m.delta_dollar}</td>`;
+        html += `<td class="${cellClass(m.delta_growth)}">${m.delta_growth}</td>`;
+        html += '</tr>';
+      });
+
+      html += '</tbody>';
+      table.innerHTML = html;
+    }
+
+    // ─── Render AOI Forward Table (margin-based) ───
+    function renderAoiForwardTable(tableId, quarters) {
+      const table = document.getElementById(tableId);
+      const cols = ['Quarter', 'Internal Forecast', 'Margin', 'Consensus', 'Cons Margin', '$ Delta', 'Margin Delta'];
+
+      let html = '<thead><tr>';
+      cols.forEach(col => { html += `<th>${col}</th>`; });
+      html += '</tr></thead><tbody>';
+
+      quarters.forEach(q => {
+        const m = q['aoi'];
+        const isTbd = m.forecast === 'TBD';
+        html += '<tr>';
+        html += `<td style="font-weight:600">${q.quarter}'26</td>`;
+        html += `<td class="${isTbd ? 'cell-tbd' : 'col-pacing'}">${m.forecast}</td>`;
+        html += `<td class="${isTbd ? 'cell-tbd' : ''}">${m.margin || '--'}</td>`;
+        html += `<td class="${isTbd ? 'cell-tbd' : ''}">${m.consensus}</td>`;
+        html += `<td class="${isTbd ? 'cell-tbd' : ''}">${m.cons_margin || '--'}</td>`;
+        html += `<td class="${cellClass(m.delta_dollar)}">${m.delta_dollar}</td>`;
+        html += `<td class="${cellClass(m.delta_margin)}">${m.delta_margin || '--'}</td>`;
+        html += '</tr>';
+      });
+
+      html += '</tbody>';
+      table.innerHTML = html;
+    }
+
+    // ─── Render Everything ───
+
+    // Page 1
+    renderScorecards('block-scorecards', D.block_scorecard);
+    renderTable('block-table', D.block_table);
+    renderScorecards('brand-scorecards', D.brand_scorecard);
+    renderTable('cashapp-table', D.cashapp_table);
+    renderTable('square-table', D.square_table);
+
+    // Page 1 — Key Takeaways
+    const t = D.takeaways;
+    document.querySelector('#takeaways-p1 ul').innerHTML = `
+      <li><strong>Gross profit</strong> is expected to land at <strong>${t.gp.value}</strong>, ${t.gp.yoy} YoY, <strong>${t.gp.vs_cons_dollar} vs. consensus</strong></li>
+      <li><strong>Adjusted operating income</strong> is expected to land at <strong>${t.aoi.value}</strong>, ${t.aoi.margin} margin, <strong>${t.aoi.vs_cons_dollar} vs. consensus</strong></li>
+    `;
+
+    // Page 2
+    if (!D.forward_look.available) {
+      document.getElementById('forward-notice').style.display = 'block';
+    } else {
+      document.getElementById('forward-notice').style.display = 'none';
+    }
+
+    const fq = D.forward_look.quarterly_forecast;
+    renderForwardTable('fwd-block-gp', 'block_gp', fq);
+    renderAoiForwardTable('fwd-aoi', fq);
+    renderForwardTable('fwd-gp-risk', 'gp_net_risk', fq);
+
+    // Page 2 — Key Takeaways (generated from data)
+    if (D.forward_look.available && fq.length >= 4) {
+      // Takeaway 1: GP trajectory — internal forecast ahead of consensus all year
+      const gpDeltas = fq.map(q => q.block_gp.delta_dollar).filter(d => d !== '--');
+      const gpGrowths = fq.slice(1).map(q => q.block_gp.yoy).join(', ');
+      document.getElementById('fwd-takeaway-1').innerHTML =
+        `<strong>Gross profit</strong> internal forecast runs ahead of consensus across all four quarters — ` +
+        `Q1 ${fq[0].block_gp.delta_dollar}, Q2 ${fq[1].block_gp.delta_dollar}, Q3 ${fq[2].block_gp.delta_dollar}, Q4 ${fq[3].block_gp.delta_dollar}. ` +
+        `Growth decelerates from ${fq[0].block_gp.yoy} in Q1 to ${fq[3].block_gp.yoy} in Q4, but remains above consensus each quarter.`;
+
+      // Takeaway 2: AOI margin gap — significant divergence from consensus
+      document.getElementById('fwd-takeaway-2').innerHTML =
+        `<strong>Adjusted operating income</strong> is the key divergence from consensus — internal forecast is ` +
+        `${fq[1].aoi.delta_dollar} in Q2, ${fq[2].aoi.delta_dollar} in Q3, and ${fq[3].aoi.delta_dollar} in Q4, ` +
+        `driven by a margin gap of ${fq[1].aoi.delta_margin} to ${fq[3].aoi.delta_margin} vs. Street expectations. ` +
+        `Internal margin of ${fq[1].aoi.margin}–${fq[3].aoi.margin} vs. consensus at ${fq[1].aoi.cons_margin}–${fq[3].aoi.cons_margin}.`;
+    }
+  </script>
+</body>
+</html>
