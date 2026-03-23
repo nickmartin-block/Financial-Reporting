@@ -71,12 +71,22 @@ def pn(s):
         return None
 
 
-def find_row(data, label, start=0):
-    """Find row index by exact col B label match."""
+def find_row(data, label, start=0, col=1):
+    """Find row index by exact label match in the given column."""
     for i in range(start, len(data)):
-        if len(data[i]) > 1 and str(data[i][1]).strip() == label:
+        if len(data[i]) > col and str(data[i][col]).strip() == label:
             return i
     return None
+
+
+def require_row(data, label, sheet_name, start=0, col=1):
+    """Find row index or abort with a clear error."""
+    idx = find_row(data, label, start, col)
+    if idx is None:
+        print(f"ERROR: Could not find label '{label}' (col {col}) in {sheet_name}. "
+              f"The sheet structure may have changed.")
+        sys.exit(1)
+    return idx
 
 
 # ─── Formatting ───
@@ -250,23 +260,32 @@ def main():
     with open(CONSENSUS_JSON) as f:
         cons = json.load(f)["values"]
 
-    # ─── PACING SHEET (Page 1) ───
+    # ─── PACING SHEET (Page 1) — all label-based lookups ───
     # Section 1a: GP
-    bgp = pacing[12]; bgp_y = pacing[13]
-    cagp = pacing[16]; cagp_y = pacing[17]
-    sqgp = pacing[20]; sqgp_y = pacing[21]
+    r_bgp = require_row(pacing, "Block gross profit", "pacing")
+    bgp = pacing[r_bgp]; bgp_y = pacing[r_bgp + 1]
+    r_cagp = require_row(pacing, "Cash App gross profit", "pacing")
+    cagp = pacing[r_cagp]; cagp_y = pacing[r_cagp + 1]
+    r_sqgp = require_row(pacing, "Square gross profit", "pacing")
+    sqgp = pacing[r_sqgp]; sqgp_y = pacing[r_sqgp + 1]
     # Section 1b: AOI
-    aoi_r = pacing[44]; mar = pacing[45]; aoi_yoy_r = pacing[51]; ro40 = pacing[48]
+    r_aoi = require_row(pacing, "Adjusted operating income", "pacing")
+    aoi_r = pacing[r_aoi]; mar = pacing[r_aoi + 1]
+    r_aoi_yoy = require_row(pacing, "Adj OI YoY %", "pacing")
+    aoi_yoy_r = pacing[r_aoi_yoy]
+    r_ro40 = require_row(pacing, "Rule of 40", "pacing")
+    ro40 = pacing[r_ro40]
     # GP Net of Risk Loss
-    gnrl = pacing[140]; gnrl_y = pacing[141]
-    # Section 2: Cash App Inflows (dynamic row lookup)
-    r_act = find_row(pacing, "Actives", 53)
-    r_ipa = find_row(pacing, "Inflows per Active", 53)
-    r_mon = find_row(pacing, "Monetization rate", 53)
-    # Section 4: Square GPV (dynamic row lookup)
-    r_gg = find_row(pacing, "Global GPV", 90)
-    r_ug = find_row(pacing, "US GPV", 90)
-    r_ig = find_row(pacing, "International GPV", 90)
+    r_gnrl = require_row(pacing, "Block Gross Profit Net of Risk Loss", "pacing")
+    gnrl = pacing[r_gnrl]; gnrl_y = pacing[r_gnrl + 1]
+    # Section 2: Cash App Inflows (label-based lookup)
+    r_act = require_row(pacing, "Actives", "pacing", start=53)
+    r_ipa = require_row(pacing, "Inflows per Active", "pacing", start=53)
+    r_mon = require_row(pacing, "Monetization rate", "pacing", start=53)
+    # Section 4: Square GPV (label-based lookup)
+    r_gg = require_row(pacing, "Global GPV", "pacing", start=90)
+    r_ug = require_row(pacing, "US GPV", "pacing", start=90)
+    r_ig = require_row(pacing, "International GPV", "pacing", start=90)
 
     act = pacing[r_act]; act_y = pacing[r_act + 1]; act_d = pacing[r_act + 2]
     ipa = pacing[r_ipa]; ipa_y = pacing[r_ipa + 1]
@@ -295,15 +314,18 @@ def main():
     gnrl_vs = gnrl_q1 - gnrl_c if gnrl_q1 and gnrl_c else None
     gnrl_ap = pn(sg(gnrl, 18))
 
-    # ─── CORP MODEL (Q2-Q4 Internal Forecast) ───
-    # Row 10=GP, Row 11=GP YoY, Row 15=Risk Loss, Row 76=AOI, Row 107=Rule of 40
-    # Cols 107-109 = Q2,Q3,Q4 forecast; Cols 101-104 = PY Q1-Q4 actuals
-    corp_gp = [pn(sg(corp[10], c)) for c in [107, 108, 109]]
-    corp_gp_yoy = [sg(corp[11], c) for c in [107, 108, 109]]
-    corp_aoi = [pn(sg(corp[76], c)) for c in [107, 108, 109]]
-    corp_risk = [pn(sg(corp[15], c)) for c in [107, 108, 109]]
-    corp_gp_py = [pn(sg(corp[10], c)) for c in [102, 103, 104]]
-    corp_risk_py = [pn(sg(corp[15], c)) for c in [102, 103, 104]]
+    # ─── CORP MODEL (Q2-Q4 Internal Forecast) — label-based lookups ───
+    # Cols 107-109 = Q2,Q3,Q4 forecast; Cols 102-104 = PY Q2-Q4 actuals
+    rc_gp = require_row(corp, "Gross Profit", "corp model")
+    rc_gp_yoy = require_row(corp, "YoY Gross Profit Growth %", "corp model")
+    rc_risk = require_row(corp, "Risk Loss", "corp model")
+    rc_aoi = require_row(corp, "Adjusted Operating Income (Loss)", "corp model")
+    corp_gp = [pn(sg(corp[rc_gp], c)) for c in [107, 108, 109]]
+    corp_gp_yoy = [sg(corp[rc_gp_yoy], c) for c in [107, 108, 109]]
+    corp_aoi = [pn(sg(corp[rc_aoi], c)) for c in [107, 108, 109]]
+    corp_risk = [pn(sg(corp[rc_risk], c)) for c in [107, 108, 109]]
+    corp_gp_py = [pn(sg(corp[rc_gp], c)) for c in [102, 103, 104]]
+    corp_risk_py = [pn(sg(corp[rc_risk], c)) for c in [102, 103, 104]]
 
     corp_gp_m = [v / 1e6 if v else None for v in corp_gp]
     corp_aoi_m = [v / 1e6 if v else None for v in corp_aoi]
@@ -320,15 +342,16 @@ def main():
     for a, g in zip(corp_aoi, corp_gp):
         corp_aoi_margin.append(a / g * 100 if a and g and g != 0 else None)
 
-    # ─── CONSENSUS MODEL ───
-    # Row 21=GP (cols 3-5=Q2-Q4), Row 22=GP YoY, Row 25=GP NRL, Row 26=NRL YoY
-    # Row 36=AOI, Row 37=AOI Margin, Row 44=Rule of 40
-    cons_gp_m = [pn(sg(cons[21], c)) for c in [3, 4, 5]]
-    cons_gp_yoy = [sg(cons[22], c) for c in [3, 4, 5]]
-    cons_aoi_m = [pn(sg(cons[36], c)) for c in [3, 4, 5]]
-    cons_aoi_margin = [pn(sg(cons[37], c)) for c in [3, 4, 5]]
-    cons_gnrl_m = [pn(sg(cons[25], c)) for c in [3, 4, 5]]
-    cons_gnrl_yoy = [sg(cons[26], c) for c in [3, 4, 5]]
+    # ─── CONSENSUS MODEL — label-based lookups (col 1 has friendly names) ───
+    rn_gp = require_row(cons, "Block Gross Profit", "consensus", col=1)
+    rn_aoi = require_row(cons, "Adjusted Operating Income (Loss)", "consensus", col=1)
+    rn_gnrl = require_row(cons, "Block Gross Profit (Less Risk Loss)", "consensus", col=1)
+    cons_gp_m = [pn(sg(cons[rn_gp], c)) for c in [3, 4, 5]]
+    cons_gp_yoy = [sg(cons[rn_gp + 1], c) for c in [3, 4, 5]]
+    cons_aoi_m = [pn(sg(cons[rn_aoi], c)) for c in [3, 4, 5]]
+    cons_aoi_margin = [pn(sg(cons[rn_aoi + 1], c)) for c in [3, 4, 5]]
+    cons_gnrl_m = [pn(sg(cons[rn_gnrl], c)) for c in [3, 4, 5]]
+    cons_gnrl_yoy = [sg(cons[rn_gnrl + 1], c) for c in [3, 4, 5]]
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
