@@ -52,4 +52,4 @@ python3 "$DASHBOARD_DIR/refresh.py"
 
 echo ""
 echo "═══ Done ═══"
-echo "Open: $DASHBOARD_DIR/dashboard.html"
+echo "View: https://blockcell.sqprod.co/sites/nmart-pacing-dashboard/dashboard.html"
