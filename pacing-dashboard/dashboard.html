@@ -297,8 +297,8 @@
       background: #2a2a2a;
     }
 
-    /* WoW column */
-    .data-table .col-wow {
+    /* vs. Tues column */
+    .data-table .col-vs-tues {
       font-size: 11px;
       color: #888;
     }
@@ -501,7 +501,7 @@
             ${card.secondary ? `<span class="secondary">${card.secondary}</span>` : ''}
             <span class="badge ${signalClass(card.signal)}">${card.badge}</span>
           </div>
-          <div class="wow">${card.wow ? (card.wow.toString().startsWith('-') || card.wow.toString().startsWith('(') ? '&#8595;' : '&#8593;') + card.wow + ' WoW' : ''}</div>
+          <div class="wow">${card.wow ? (card.wow.toString().startsWith('-') || card.wow.toString().startsWith('(') ? '&#8595;' : '&#8593;') + card.wow + ' vs. Tues' : ''}</div>
         </div>
       `).join('');
     }
@@ -527,7 +527,7 @@
           const col = cols[i];
           let cls = '';
           if (col === 'Q1 Pacing') cls = ' class="col-pacing"';
-          else if (col.includes('WoW')) cls = ' class="col-wow"';
+          else if (col.includes('vs. Tues')) cls = ' class="col-vs-tues"';
           else if (col.includes('vs.') || col.includes('Delta')) cls = ` class="${cellClass(val)}"`;
           else if (col === 'YoY Growth' || col === 'Cons YoY') cls = ` class="${cellClass(val)}"`;
           html += `<td${cls}>${val}</td>`;
@@ -544,7 +544,7 @@
       return cols.map(col => {
         if (col === 'Metric') return row.metric;
         if (col === 'Q1 Pacing') return row.pacing;
-        if (col.includes('WoW')) return row.wow || '--';
+        if (col.includes('vs. Tues')) return row.wow || '--';
         if (col === 'YoY Growth') return row.yoy;
         if (col === 'Q1 AP') return row.ap;
         if (col === 'Q1 Guidance') return row.guidance || '--';

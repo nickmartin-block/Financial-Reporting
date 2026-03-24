@@ -62,4 +62,4 @@ fi
 
 echo ""
 echo "═══ Done ═══"
-echo "View: https://blockcell.sqprod.co/sites/nmart-pacing-dashboard/dashboard.html"
+echo "View: https://blockcell.sqprod.co/sites/nmart-pacing-dashboard/index.html"
