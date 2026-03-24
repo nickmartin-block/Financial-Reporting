@@ -37,6 +37,16 @@ CONSENSUS_TAB = "Visible Alpha Consensus Summary"
 PACING_JSON = "/tmp/pacing_sheet.json"
 CORP_JSON = "/tmp/corp_model.json"
 CONSENSUS_JSON = "/tmp/consensus_model.json"
+COMMENTARY_JSON = "/tmp/commentary.json"  # Optional: written by skill from Innercore doc
+
+# ─── Q1 2025 Historical Actuals (from Snowflake, fixed) ───
+# Source: APP_HEXAGON.SCHEDULE2.FINANCIAL_METRIC_SUMMARY, scenario='Actual', Q1 2024/2025
+Q1_2024_GP = 2094472510.10       # Block Gross Profit Q1 2024 (USD)
+Q1_2025_GP = 2289603216.33       # Block Gross Profit Q1 2025 (USD)
+Q1_2025_AOI = 466268762.99       # Adjusted Operating Income Q1 2025 (USD)
+Q1_2025_MARGIN = Q1_2025_AOI / Q1_2025_GP * 100        # 20.37%
+Q1_2025_GP_GROWTH = (Q1_2025_GP - Q1_2024_GP) / Q1_2024_GP * 100  # 9.32%
+Q1_2025_RO40 = Q1_2025_GP_GROWTH + Q1_2025_MARGIN      # 29.68%
 
 
 # ═══════════════════════════════════════════════════════
@@ -144,11 +154,14 @@ def fac(s):
     return f"{v:.1f}M" if v is not None else s
 
 def fwd(s):
-    """Format WoW dollar delta."""
+    """Format WoW dollar delta — keep .1f for sub-$10M precision."""
     if not s: return "--"
     v = pn(s)
     if v is None: return "--"
-    return f"(${abs(v):.0f}M)" if v < 0 else f"+${v:.0f}M"
+    av = abs(v)
+    if av < 0.05: return "+$0M"
+    t = f"${av:.1f}M" if av < 10 else f"${av:.0f}M"
+    return f"({t})" if v < 0 else f"+{t}"
 
 def fwp(s):
     """Format WoW percentage delta."""
@@ -228,18 +241,41 @@ def wow_dollar_plain(row):
     return f"(${abs(d):,.0f})" if d < 0 else f"+${d:,.0f}"
 
 def wow_pct(row):
-    cur, prior = pn(sg(row, 17)), pn(sg(row, 27))
+    """Format WoW for percentage metrics (monetization rate) in bps."""
+    # Prefer col 28 (pre-computed delta)
+    raw28 = sg(row, 28)
+    if raw28:
+        v = pn(raw28)
+        if v is not None:
+            bps = round(v) if "bps" in raw28 else round(v * 100)
+            if abs(bps) < 1: return "0 bps"
+            return f"({abs(bps)} bps)" if bps < 0 else f"+{bps} bps"
+    # Fallback: compute from cols 17/27 with unit detection
+    cur_raw, prior_raw = sg(row, 17), sg(row, 27)
+    cur, prior = pn(cur_raw), pn(prior_raw)
     if cur is None or prior is None: return "--"
-    d = (cur - prior) * 100
+    # Col 27 may store as decimal (0.0179) while col 17 is percentage (1.79%)
+    if "%" not in prior_raw and prior < 1 and cur > 1:
+        prior = prior * 100
+    d = (cur - prior) * 100  # percentage points → bps
     if abs(d) < 0.5: return "0 bps"
     return f"({abs(d):.0f} bps)" if d < 0 else f"+{d:.0f} bps"
 
 def wow_gpv(row):
+    """Format GPV WoW in millions for better precision."""
+    # Prefer col 28 (pre-computed delta, already in millions)
+    raw = sg(row, 28)
+    if raw:
+        v = pn(raw)
+        if v is not None:
+            if abs(v) < 0.5: return "+$0M"
+            return f"(${abs(v):.0f}M)" if v < 0 else f"+${v:.0f}M"
+    # Fallback: compute from pacing values (in billions → convert to millions)
     cur, prior = pn(sg(row, 17)), pn(sg(row, 27))
     if cur is None or prior is None: return "--"
-    d = cur - prior
-    if abs(d) < 0.05: return "$0.0B"
-    return f"(${abs(d):.1f}B)" if d < 0 else f"+${d:.1f}B"
+    d = (cur - prior) * 1000
+    if abs(d) < 0.5: return "+$0M"
+    return f"(${abs(d):.0f}M)" if d < 0 else f"+${d:.0f}M"
 
 
 # ═══════════════════════════════════════════════════════
@@ -300,6 +336,33 @@ def main():
     aoi_q1 = pn(sg(aoi_r, 17)); aoi_c = pn(sg(aoi_r, 21))
     aoi_vs = aoi_q1 - aoi_c if aoi_q1 and aoi_c else None
     ro40_v = pn(sg(ro40, 17)); ro40_a = pn(sg(ro40, 18)); ro40_c = pn(sg(ro40, 21))
+    # Guidance deltas (Block table only)
+    bgp_guide = pn(sg(bgp, 20))
+    bgp_vs_guide = bgp_q1 - bgp_guide if bgp_q1 and bgp_guide else None
+    aoi_guide = pn(sg(aoi_r, 20))
+    aoi_vs_guide = aoi_q1 - aoi_guide if aoi_q1 and aoi_guide else None
+    mar_guide = pn(sg(mar, 20))
+    q1_mar_pacing = pn(sg(mar, 17))
+    ro40_guide = pn(sg(ro40, 20))
+
+    # AOI Margin & Rule of 40 — YoY and Cons YoY (computed from raw values)
+    # Raw pacing margin = AOI / GP (in millions, from pacing sheet)
+    raw_margin_pacing = aoi_q1 / bgp_q1 * 100 if aoi_q1 and bgp_q1 else None
+    raw_margin_cons = aoi_c / bgp_c * 100 if aoi_c and bgp_c else None
+    # YoY: raw margin vs Q1 2025 actual margin
+    margin_yoy = raw_margin_pacing - Q1_2025_MARGIN if raw_margin_pacing else None
+    margin_cons_yoy = raw_margin_cons - Q1_2025_MARGIN if raw_margin_cons else None
+    margin_vs_cons = raw_margin_pacing - raw_margin_cons if raw_margin_pacing and raw_margin_cons else None
+    # Margin WoW: col 17 vs col 27 (col 27 may be decimal form)
+    mar_prior_raw = sg(mar, 27)
+    mar_prior = pn(mar_prior_raw)
+    if mar_prior is not None and "%" not in mar_prior_raw and mar_prior < 1 and q1_mar_pacing and q1_mar_pacing > 1:
+        mar_prior = mar_prior * 100
+    margin_wow = q1_mar_pacing - mar_prior if q1_mar_pacing is not None and mar_prior is not None else None
+    # Rule of 40 YoY
+    ro40_yoy = ro40_v - Q1_2025_RO40 if ro40_v is not None else None
+    ro40_cons_yoy = ro40_c - Q1_2025_RO40 if ro40_c is not None else None
+
     cagp_q1 = pn(sg(cagp, 17)); cagp_c = pn(sg(cagp, 21))
     cagp_vs = cagp_q1 - cagp_c if cagp_q1 and cagp_c else None
     sqgp_q1 = pn(sg(sqgp, 17)); sqgp_c = pn(sg(sqgp, 21))
@@ -313,6 +376,71 @@ def main():
     gnrl_q1 = pn(sg(gnrl, 17)); gnrl_c = pn(sg(gnrl, 21))
     gnrl_vs = gnrl_q1 - gnrl_c if gnrl_q1 and gnrl_c else None
     gnrl_ap = pn(sg(gnrl, 18))
+
+    # ─── MONTHLY BREAKDOWN (interactive chart + table) ───
+    CY = [11, 12, 13]  # 2026 Actual (Jan, Feb) / Pacing (Mar)
+    PL = [5, 6, 7]     # 2026 Annual Plan
+    PY = [2, 3, 4]     # 2025 Prior Year Actual
+    MLABELS = ["January", "February", "March (P)"]
+
+    def build_monthly(mid, label, row, chart_type, unit, fmt_val, fmt_delta,
+                      margin_row=None):
+        """Build a monthly metric object with raw values for charting."""
+        m = {"id": mid, "label": label, "chart_type": chart_type, "unit": unit, "months": []}
+        for ml, cy, pl, py in zip(MLABELS, CY, PL, PY):
+            cv = pn(sg(row, cy)); pv = pn(sg(row, pl)); pyv = pn(sg(row, py))
+            delta = cv - pv if cv is not None and pv is not None else None
+            yoy_v = ((cv - pyv) / pyv * 100) if cv and pyv and pyv != 0 else None
+            plan_yoy_v = ((pv - pyv) / pyv * 100) if pv and pyv and pyv != 0 else None
+            mo = {
+                "label": ml,
+                "value": fmt_val(cv) if callable(fmt_val) else (sg(row, cy) or "--"),
+                "raw": round(cv, 2) if cv is not None else None,
+                "plan_raw": round(pv, 2) if pv is not None else None,
+                "vs_plan": fmt_delta(delta),
+                "yoy": fmt_yoy(yoy_v), "yoy_raw": round(yoy_v, 1) if yoy_v is not None else None,
+                "plan_yoy": fmt_yoy(plan_yoy_v), "plan_yoy_raw": round(plan_yoy_v, 1) if plan_yoy_v is not None else None,
+            }
+            if margin_row:
+                mv = pn(sg(margin_row, cy)); mpv = pn(sg(margin_row, pl))
+                mo["margin"] = fm(sg(margin_row, cy))
+                mo["margin_raw"] = round(mv, 1) if mv is not None else None
+                mo["plan_margin"] = fm(sg(margin_row, pl))
+                mo["plan_margin_raw"] = round(mpv, 1) if mpv is not None else None
+            m["months"].append(mo)
+        return m
+
+    monthly = []
+
+    # Block Gross Profit
+    monthly.append(build_monthly("block_gp", "Block Gross Profit", bgp, "yoy", "M", fM, fdD))
+
+    # Cash App Gross Profit
+    monthly.append(build_monthly("cashapp_gp", "Cash App Gross Profit", cagp, "yoy", "M", fM, fdD))
+
+    # Square Gross Profit
+    monthly.append(build_monthly("square_gp", "Square Gross Profit", sqgp, "yoy", "M", fM, fdD))
+
+    # Cash App Actives
+    def _fac_v(v): return fac(f"{v}M") if v is not None else "--"
+    def _fd_act(v):
+        if v is None: return "--"
+        return f"({abs(v):.1f}M)" if v < 0 else f"+{v:.1f}M"
+    monthly.append(build_monthly("actives", "Cash App Actives", act, "yoy", "M_users", _fac_v, _fd_act))
+
+    # Global / US / International GPV
+    def _fgpv(v): return f"${v:.1f}B" if v is not None else "--"
+    def _fd_gpv(v):
+        if v is None: return "--"
+        return f"(${abs(v):.1f}B)" if v < 0 else f"+${v:.1f}B"
+    for gpv_row, gpv_id, gpv_label in [
+        (gg, "global_gpv", "Global GPV"), (ug, "us_gpv", "US GPV"), (ig, "intl_gpv", "International GPV")
+    ]:
+        monthly.append(build_monthly(gpv_id, gpv_label, gpv_row, "yoy", "B", _fgpv, _fd_gpv))
+
+    # Adjusted Operating Income (margin chart type)
+    monthly.append(build_monthly("aoi", "Adjusted Operating Income", aoi_r, "margin", "M", fM, fdD,
+                                 margin_row=mar))
 
     # ─── CORP MODEL (Q2-Q4 Internal Forecast) — label-based lookups ───
     # Cols 107-109 = Q2,Q3,Q4 forecast; Cols 102-104 = PY Q2-Q4 actuals
@@ -424,49 +552,77 @@ def main():
         },
         "takeaways": {
             "gp": {"value": fB(bgp_q1), "yoy": fp(sg(bgp_y, 17)), "vs_cons_dollar": fdD(bgp_vs)},
-            "aoi": {"value": fM(aoi_q1), "margin": fm(sg(mar, 17)), "vs_cons_dollar": fdD(aoi_vs)}
+            "aoi": {"value": fM(aoi_q1), "margin": fm(sg(mar, 17)), "vs_cons_dollar": fdD(aoi_vs)},
+            "additional": json.load(open(COMMENTARY_JSON)) if os.path.exists(COMMENTARY_JSON) else []
         },
         "block_scorecard": [
             {"label": "Block Gross Profit", "q1_pacing": fB(bgp_q1),
              "secondary": f"{fp(sg(bgp_y, 17))} YoY",
-             "badge": f"{fdD(bgp_vs)} vs Cons", "signal": sig(pd(bgp_q1, bgp_c)),
+             "badge": f"{fdD(bgp_vs)} vs Cons", "accent": "black",
+             "signal": sig(pd(bgp_q1, bgp_c)),
              "wow": fwd(sg(bgp, 28))},
             {"label": "Adjusted Operating Income", "q1_pacing": fM(aoi_q1),
              "secondary": f"{fm(sg(mar, 17))} margin",
-             "badge": f"{fdD(aoi_vs)} vs Cons", "signal": sig(pd(aoi_q1, aoi_c)),
+             "badge": f"{fdD(aoi_vs)} vs Cons", "accent": "black",
+             "signal": sig(pd(aoi_q1, aoi_c)),
              "wow": fwd(sg(aoi_r, 28))},
             {"label": "Rule of 40", "q1_pacing": sg(ro40, 17) or "--",
              "secondary": "",
              "badge": f"+{ro40_v - ro40_a:.0f} vs AP" if ro40_v and ro40_a else "--",
+             "accent": "black",
              "signal": sig(ro40_v - ro40_a if ro40_v and ro40_a else None),
              "wow": fwp(sg(ro40, 28))}
         ],
         "block_table": {
             "columns": ["Metric", "Q1 Pacing", "WoW Δ", "YoY Growth", "Q1 AP",
-                         "Q1 Guidance", "Q1 Consensus", "Cons YoY", "vs. Cons"],
+                         "Q1 Guidance", "vs. Guide", "Q1 Consensus", "Cons YoY", "vs. Cons"],
             "rows": [
                 {"metric": "Block Gross Profit", "pacing": fB(bgp_q1), "wow": fwd(sg(bgp, 28)),
                  "yoy": fp(sg(bgp_y, 17)), "ap": fB(pn(sg(bgp, 18))),
-                 "guidance": fB(pn(sg(bgp, 20))), "consensus": fB(bgp_c),
+                 "guidance": fB(bgp_guide), "vs_guide": fdD(bgp_vs_guide),
+                 "consensus": fB(bgp_c),
                  "cons_yoy": fp(sg(bgp_y, 21)), "vs_cons": fdD(bgp_vs),
                  "signal": sig(pd(bgp_q1, bgp_c))},
                 {"metric": "Adjusted Operating Income", "pacing": fM(aoi_q1),
                  "wow": fwd(sg(aoi_r, 28)), "yoy": fp(sg(aoi_yoy_r, 17)),
-                 "ap": fM(pn(sg(aoi_r, 18))), "guidance": fM(pn(sg(aoi_r, 20))),
+                 "ap": fM(pn(sg(aoi_r, 18))), "guidance": fM(aoi_guide),
+                 "vs_guide": fdD(aoi_vs_guide),
                  "consensus": fM(aoi_c), "cons_yoy": fp(sg(aoi_yoy_r, 21)),
                  "vs_cons": fdD(aoi_vs), "signal": sig(pd(aoi_q1, aoi_c))},
-                {"metric": "AOI Margin", "pacing": fm(sg(mar, 17)), "wow": "--", "yoy": "--",
+                {"metric": "AOI Margin", "pacing": fm(sg(mar, 17)),
+                 "wow": (f"+{margin_wow:.0f} pts" if margin_wow is not None and margin_wow >= 0.5
+                         else (f"({abs(margin_wow):.0f} pts)" if margin_wow is not None and margin_wow <= -0.5
+                         else ("0 pts" if margin_wow is not None else "--"))),
+                 "yoy": (f"+{margin_yoy:.0f} pts" if margin_yoy is not None and margin_yoy >= 0.5
+                         else (f"({abs(margin_yoy):.0f} pts)" if margin_yoy is not None and margin_yoy <= -0.5
+                         else ("0 pts" if margin_yoy is not None else "--"))),
                  "ap": fm(sg(mar, 18)), "guidance": fm(sg(mar, 20)),
-                 "consensus": fm(sg(mar, 21)), "cons_yoy": "--", "vs_cons": "--",
+                 "vs_guide": fmt_margin_delta(q1_mar_pacing, mar_guide),
+                 "consensus": fm(sg(mar, 21)),
+                 "cons_yoy": (f"+{margin_cons_yoy:.0f} pts" if margin_cons_yoy is not None and margin_cons_yoy >= 0.5
+                              else (f"({abs(margin_cons_yoy):.0f} pts)" if margin_cons_yoy is not None and margin_cons_yoy <= -0.5
+                              else ("0 pts" if margin_cons_yoy is not None else "--"))),
+                 "vs_cons": (f"+{margin_vs_cons:.0f} pts" if margin_vs_cons is not None and margin_vs_cons >= 0.5
+                             else (f"({abs(margin_vs_cons):.0f} pts)" if margin_vs_cons is not None and margin_vs_cons <= -0.5
+                             else ("0 pts" if margin_vs_cons is not None else "--"))),
                  "signal": "neutral"},
                 {"metric": "Rule of 40", "pacing": sg(ro40, 17) or "--",
-                 "wow": fwp(sg(ro40, 28)), "yoy": "--",
+                 "wow": fwp(sg(ro40, 28)),
+                 "yoy": (f"+{ro40_yoy:.0f} pts" if ro40_yoy is not None and ro40_yoy >= 0.5
+                         else (f"({abs(ro40_yoy):.0f} pts)" if ro40_yoy is not None and ro40_yoy <= -0.5
+                         else ("0 pts" if ro40_yoy is not None else "--"))),
                  "ap": sg(ro40, 18) or "--", "guidance": sg(ro40, 20) or "--",
-                 "consensus": sg(ro40, 21) or "--", "cons_yoy": "--",
+                 "vs_guide": (f"+{ro40_v - ro40_guide:.0f} pts" if ro40_v and ro40_guide and ro40_v >= ro40_guide
+                              else (f"({abs(ro40_v - ro40_guide):.0f} pts)" if ro40_v and ro40_guide else "--")),
+                 "consensus": sg(ro40, 21) or "--",
+                 "cons_yoy": (f"+{ro40_cons_yoy:.0f} pts" if ro40_cons_yoy is not None and ro40_cons_yoy >= 0.5
+                              else (f"({abs(ro40_cons_yoy):.0f} pts)" if ro40_cons_yoy is not None and ro40_cons_yoy <= -0.5
+                              else ("0 pts" if ro40_cons_yoy is not None else "--"))),
                  "vs_cons": f"+{ro40_v - ro40_c:.0f} pts" if ro40_v and ro40_c else "--",
                  "signal": "neutral"},
                 {"metric": "GP Net of Risk Loss", "pacing": fB(gnrl_q1), "wow": "--",
                  "yoy": fpg(sg(gnrl_y, 17)), "ap": fB(gnrl_ap), "guidance": "--",
+                 "vs_guide": "--",
                  "consensus": fB(gnrl_c), "cons_yoy": fpg(sg(gnrl_y, 21)),
                  "vs_cons": fdD(gnrl_vs), "signal": sig(pd(gnrl_q1, gnrl_c))}
             ]
@@ -474,12 +630,12 @@ def main():
         "brand_scorecard": [
             {"label": "Cash App Actives", "q1_pacing": fac(sg(act, 17)),
              "secondary": f"{fp(sg(act_y, 17))} YoY",
-             "badge": f"{fp(sg(act_d, 17))} vs AP",
-             "signal": "green", "wow": wow_actives(act)},
+             "badge": f"{fp(sg(act_d, 17))} vs AP", "accent": "green",
+             "signal": sig(pn(sg(act_d, 17))), "wow": wow_actives(act)},
             {"label": "Square Global GPV", "q1_pacing": sg(gg, 17),
              "secondary": f"{fpg(sg(gg_y, 17))} YoY",
-             "badge": f"{fp(sg(gg_d, 17))} vs AP",
-             "signal": "blue", "wow": wow_gpv(gg)}
+             "badge": f"{fp(sg(gg_d, 17))} vs AP", "accent": "blue",
+             "signal": sig(pn(sg(gg_d, 17))), "wow": wow_gpv(gg)}
         ],
         "cashapp_table": {
             "columns": ["Metric", "Q1 Pacing", "WoW Δ", "YoY Growth", "Q1 Consensus", "vs. Cons"],
@@ -535,6 +691,7 @@ def main():
                  "signal": sig(pd(ig_q1, ig_c))}
             ]
         },
+        "monthly_breakdown": monthly,
         "forward_look": {
             "available": True, "note": "",
             "quarterly_forecast": qf,

@@ -185,6 +185,7 @@
     .scorecard.red::before { background: #CC0000; }
     .scorecard.neutral::before { background: #999; }
     .scorecard.blue::before { background: #1a73e8; }
+    .scorecard.black::before { background: #1a1a1a; }
 
     .badge.blue { background: #e8f0fe; color: #1a73e8; }
 
@@ -398,6 +399,20 @@
       <table class="data-table" id="square-table"></table>
     </div>
 
+    <!-- Monthly Breakdown (Interactive) -->
+    <div class="section-header" style="margin-top:36px; display:flex; align-items:center; justify-content:space-between;">
+      Monthly Breakdown
+      <select id="monthly-metric-select" style="font-family:Inter,sans-serif; font-size:12px; font-weight:600; padding:6px 12px; border:1px solid #ccc; border-radius:4px; background:#fff; color:#1a1a1a; cursor:pointer;"></select>
+    </div>
+
+    <div class="data-table-wrapper">
+      <table class="data-table" id="monthly-table"></table>
+    </div>
+
+    <div style="background:#fff; border:1px solid #e2e5e9; border-radius:8px; padding:20px; margin-top:12px;">
+      <canvas id="monthly-chart" height="220"></canvas>
+    </div>
+
   </div>
 
   <!-- ═══════════════════════════════════════════════════ -->
@@ -449,6 +464,9 @@
 
   </div>
 
+  <!-- ═══ Chart.js ═══ -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
   <!-- ═══ Data ═══ -->
   <script src="dashboard_data.js"></script>
 
@@ -494,7 +512,7 @@
     function renderScorecards(containerId, cards) {
       const container = document.getElementById(containerId);
       container.innerHTML = cards.map(card => `
-        <div class="scorecard ${signalClass(card.signal)}">
+        <div class="scorecard ${card.accent || signalClass(card.signal)}">
           <div class="label">${card.label}</div>
           <div class="value">${card.q1_pacing}</div>
           <div class="secondary-row">
@@ -548,6 +566,7 @@
         if (col === 'YoY Growth') return row.yoy;
         if (col === 'Q1 AP') return row.ap;
         if (col === 'Q1 Guidance') return row.guidance || '--';
+        if (col === 'vs. Guide') return row.vs_guide || '--';
         if (col === 'Q1 Consensus') return row.consensus || '--';
         if (col === 'Cons YoY') return row.cons_yoy || '--';
         if (col === 'vs. Cons') return row.vs_cons || row.vs_comp || '--';
@@ -609,6 +628,133 @@
       table.innerHTML = html;
     }
 
+    // ─── Monthly Breakdown (Interactive) ───
+    let monthlyChart = null;
+
+    function updateMonthlyView(metricId) {
+      const metric = D.monthly_breakdown.find(m => m.id === metricId);
+      if (!metric) return;
+      const ms = metric.months;
+      const isMargin = metric.chart_type === 'margin';
+
+      // ── Table ──
+      const table = document.getElementById('monthly-table');
+      const row2Label = isMargin ? 'Margin' : 'YoY Growth';
+      let html = '<thead><tr><th style="text-align:left; padding-left:16px; width:120px"></th>';
+      ms.forEach(m => { html += `<th>${m.label}</th>`; });
+      html += '</tr></thead><tbody>';
+      // Row 1: Values
+      html += '<tr><td style="font-weight:600; text-align:left; padding-left:16px; color:#666; font-size:11px">Value</td>';
+      ms.forEach(m => { html += `<td class="col-pacing">${m.value}</td>`; });
+      html += '</tr>';
+      // Row 2: YoY Growth or Margin
+      html += `<tr><td style="font-weight:600; text-align:left; padding-left:16px; color:#666; font-size:11px">${row2Label}</td>`;
+      ms.forEach(m => {
+        const val = isMargin ? m.margin : m.yoy;
+        html += `<td class="${cellClass(val)}">${val}</td>`;
+      });
+      html += '</tr>';
+      // Row 3: vs Plan
+      html += '<tr><td style="font-weight:600; text-align:left; padding-left:16px; color:#666; font-size:11px">vs Plan</td>';
+      ms.forEach(m => { html += `<td class="${cellClass(m.vs_plan)}">${m.vs_plan}</td>`; });
+      html += '</tr></tbody>';
+      table.innerHTML = html;
+
+      // ── Chart ──
+      if (monthlyChart) monthlyChart.destroy();
+      const labels = ms.map(m => m.label);
+      const barData = ms.map(m => m.raw);
+      let lineData, planLineData, lineLabel, planLabel, lineAxisLabel;
+      if (isMargin) {
+        lineData = ms.map(m => m.margin_raw);
+        planLineData = ms.map(m => m.plan_margin_raw);
+        lineLabel = 'Actual Margin'; planLabel = 'Plan Margin'; lineAxisLabel = 'Margin %';
+      } else {
+        lineData = ms.map(m => m.yoy_raw);
+        planLineData = ms.map(m => m.plan_yoy_raw);
+        lineLabel = 'YoY Growth'; planLabel = 'Plan YoY'; lineAxisLabel = 'Growth %';
+      }
+      const unitLabel = metric.unit === 'B' ? '$B' : metric.unit === 'M_users' ? 'Actives (M)' : '$M';
+      const planBarData = ms.map(m => m.plan_raw);
+      const fmtVal = v => {
+        if (v == null) return '';
+        if (metric.unit === 'B') return '$' + v.toFixed(1) + 'B';
+        if (metric.unit === 'M_users') return v.toFixed(1) + 'M';
+        return '$' + v.toLocaleString() + 'M';
+      };
+
+      // Tighten right Y-axis around actual data range
+      const allLineVals = [...lineData, ...planLineData].filter(v => v != null);
+      const lineMin = Math.min(...allLineVals);
+      const lineMax = Math.max(...allLineVals);
+      const lineRange = lineMax - lineMin;
+      const linePad = Math.max(1, lineRange * 0.2);
+      const y1Min = Math.floor(lineMin - linePad);
+      const y1Max = Math.ceil(lineMax + linePad);
+
+      monthlyChart = new Chart(document.getElementById('monthly-chart'), {
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              type: 'bar', label: 'Actual', data: barData,
+              backgroundColor: '#1a1a1a', borderColor: '#1a1a1a',
+              borderWidth: 1, borderRadius: 4, order: 2, yAxisID: 'y',
+              barPercentage: 0.7, categoryPercentage: 0.6
+            },
+            {
+              type: 'bar', label: 'Plan', data: planBarData,
+              backgroundColor: '#d4d4d4', borderColor: '#bbb',
+              borderWidth: 1, borderRadius: 4, order: 2, yAxisID: 'y',
+              barPercentage: 0.7, categoryPercentage: 0.6
+            },
+            {
+              type: 'line', label: lineLabel, data: lineData,
+              borderColor: '#007A33', borderWidth: 2.5, pointRadius: 5,
+              pointBackgroundColor: '#007A33', fill: false, order: 1, yAxisID: 'y1',
+              tension: 0.1
+            },
+            {
+              type: 'line', label: planLabel, data: planLineData,
+              borderColor: '#999', borderWidth: 2, borderDash: [6, 3],
+              pointRadius: 4, pointBackgroundColor: '#999', pointStyle: 'circle',
+              fill: false, order: 1, yAxisID: 'y1', tension: 0.1
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, usePointStyle: true, padding: 16 } },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const v = ctx.raw;
+                  if (v == null) return '';
+                  if (ctx.datasetIndex <= 1) return `${ctx.dataset.label}: ${fmtVal(v)}`;
+                  return `${ctx.dataset.label}: ${v.toFixed(1)}%`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              position: 'left', grid: { color: '#f0f0f0' },
+              title: { display: true, text: unitLabel, font: { family: 'Inter', size: 11, weight: '600' }, color: '#666' },
+              ticks: { font: { family: 'Inter', size: 10 }, color: '#888' }
+            },
+            y1: {
+              position: 'right', grid: { drawOnChartArea: false },
+              min: y1Min, max: y1Max,
+              title: { display: true, text: lineAxisLabel, font: { family: 'Inter', size: 11, weight: '600' }, color: '#666' },
+              ticks: { font: { family: 'Inter', size: 10 }, color: '#888', callback: v => v + '%' }
+            }
+          }
+        }
+      });
+    }
+
     // ─── Render Everything ───
 
     // Page 1
@@ -618,12 +764,27 @@
     renderTable('cashapp-table', D.cashapp_table);
     renderTable('square-table', D.square_table);
 
+    // Page 1 — Monthly Breakdown (init dropdown + first render)
+    if (D.monthly_breakdown && D.monthly_breakdown.length) {
+      const select = document.getElementById('monthly-metric-select');
+      D.monthly_breakdown.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id; opt.textContent = m.label;
+        select.appendChild(opt);
+      });
+      select.addEventListener('change', () => updateMonthlyView(select.value));
+      updateMonthlyView(D.monthly_breakdown[0].id);
+    }
+
     // Page 1 — Key Takeaways
     const t = D.takeaways;
-    document.querySelector('#takeaways-p1 ul').innerHTML = `
+    let takeawaysHtml = `
       <li><strong>Gross profit</strong> is expected to land at <strong>${t.gp.value}</strong>, ${t.gp.yoy} YoY, <strong>${t.gp.vs_cons_dollar} vs. consensus</strong></li>
-      <li><strong>Adjusted operating income</strong> is expected to land at <strong>${t.aoi.value}</strong>, ${t.aoi.margin} margin, <strong>${t.aoi.vs_cons_dollar} vs. consensus</strong></li>
-    `;
+      <li><strong>Adjusted operating income</strong> is expected to land at <strong>${t.aoi.value}</strong>, ${t.aoi.margin} margin, <strong>${t.aoi.vs_cons_dollar} vs. consensus</strong></li>`;
+    if (t.additional && t.additional.length) {
+      t.additional.forEach(item => { takeawaysHtml += `<li>${item}</li>`; });
+    }
+    document.querySelector('#takeaways-p1 ul').innerHTML = takeawaysHtml;
 
     // Page 2
     if (!D.forward_look.available) {
