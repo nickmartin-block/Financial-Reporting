@@ -688,7 +688,7 @@
       const lineMin = Math.min(...allLineVals);
       const lineMax = Math.max(...allLineVals);
       const lineRange = lineMax - lineMin;
-      const linePad = Math.max(1, lineRange * 0.2);
+      const linePad = Math.max(0.5, lineRange * 0.1);
       const y1Min = Math.floor(lineMin - linePad);
       const y1Max = Math.ceil(lineMax + linePad);
 
