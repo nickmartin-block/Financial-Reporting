@@ -206,7 +206,7 @@ cd ~/Desktop/Nick's\ Cursor/Pacing\ Dashboard && uv run validate.py --quick
 Use `--quick` for local checks only (fast). Use full mode (no flag) if Snowflake connectivity is available.
 
 **If validation fails:** Read `/tmp/validation_report.json` and send a Slack DM to nmart (U051CL4GC2X) with the failures. Use the Slack MCP `post_message` tool:
-- Channel: DM to U051CL4GC2X
+- Channel: channel_id: U051CL4GC2X (Nick's DM — use channel_id, not username)
 - Message format:
   ```
   :red_circle: *Dashboard Validation Failed*
