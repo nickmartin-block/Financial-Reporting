@@ -170,8 +170,8 @@ Each Overview section includes bulleted fact lines with proper nesting (see temp
 
 For additional details on performance for each brand, please reference the materials below:
 
-[Cash App - Weekly Performance Digest](link from Slack digest message, or placeholder)
-[Square Weekly Execution Update](placeholder — link not currently automated)
+[Cash App - Weekly Performance Digest](https://docs.google.com/presentation/d/1BaovDK5z8RMVSFjtr5SvX4a6YWpDywQZG4EJg8f_L2o/edit?slide=id.g35eb82d16a0_10_141#slide=id.g35eb82d16a0_10_141)
+[Square Weekly Execution Update](https://docs.google.com/presentation/d/1ij5SkSVMLjRSMkrXkglR1k00zfNCKO6CfT9deWZy5uQ/edit?slide=id.g3d1d52cd57e_2_0#slide=id.g3d1d52cd57e_2_0)
 
 - **Block gross profit** is pacing to [Block Month Value — $B] in [Month] ([YoY]% YoY), [AP delta]% ([AP delta $]) [above/below] AP.
     - **Cash App gross profit** is pacing to [Value] in [Month] ([YoY]% YoY), [AP delta]% ([AP delta $]) [above/below] AP.
@@ -308,6 +308,21 @@ cat "FILEPATH_FROM_STEP_5" | (cd ~/skills/gdrive && uv run gdrive-cli.py docs in
 
 Use the file path from Step 5 and the tab ID from 5.5c. Verify the response shows `"status": "ok"`.
 
+### 5.5d½ — Set body font size to 10pt
+
+The markdown converter inserts body text at the Google Docs default (11pt). Override to 10pt for all non-heading content.
+
+1. Read the doc structure via `docs get --include-tabs` and find the target tab
+2. For every paragraph with `namedStyleType` of `NORMAL_TEXT` (skip `HEADING_1`, `HEADING_2`, `HEADING_3`), collect its `startIndex`–`endIndex` range
+3. Include paragraphs inside table cells (they are also `NORMAL_TEXT`)
+4. Batch-update with `updateTextStyle` on each range:
+
+```json
+{"updateTextStyle": {"textStyle": {"fontSize": {"magnitude": 10, "unit": "PT"}}, "fields": "fontSize", "range": {"startIndex": START, "endIndex": END, "tabId": "TAB_ID"}}}
+```
+
+Combine all ranges into a single batch request for efficiency. This step must run **before** bullet nesting fixes (5.5e) since it does not shift indices.
+
 ### 5.5e — Fix bullet nesting
 
 The markdown converter renders all bullets flat (level 0) and some intended-bullets as paragraphs. Fix nesting in both the **Summary** and **Overview** sections.
@@ -422,3 +437,34 @@ Tell Nick:
 - Count of `[MANUAL]` placeholders that need filling (remind Nick to fill these in the Google Doc)
 - Whether the Cash digest was found (and from what date)
 - Any notable signals (e.g., a metric flipped from green to red, WoW direction changes)
+
+---
+
+## Step 8 — Send Slack summary
+
+After validation passes and Nick confirms the digest is ready, send a DM to Nick with a formatted summary he can share with the team.
+
+```bash
+/Users/nmart/skills/slack/scripts/slack-cli post-message --dm-myself "MESSAGE"
+```
+
+### Message format
+
+```
+M/D Block Performance Digest is ready for your review: https://docs.google.com/document/d/1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0/edit?tab=TAB_ID
+
+Key takeaways:
+• [Block Q1 GP — pacing value, YoY%, delta vs AP $, delta vs guidance $, brief WoW context if notable]
+• [Q1 Profitability — AOI pacing value, margin%, delta vs guidance $; Rule of X, delta vs AP pts]
+• [Cash App — monthly GP pacing, YoY%, delta vs AP $; WoW direction + driver summary; Q1 positioning]
+• [Square — monthly GP pacing, YoY%, delta vs AP $; WoW direction + driver; any watch items like GPV-to-GP spread]
+```
+
+### Takeaway guidelines
+
+- **Lead with Q1 quarterly numbers** — these are what leadership tracks
+- **Focus on what changed WoW** — the digest numbers are in the doc; the takeaways should highlight movement and drivers
+- **Include watch items** — flag metrics trending in the wrong direction or persistent gaps (e.g., actives below AP, GPV-to-GP spread)
+- **Keep each bullet to 1–2 lines** — concise, numbers-forward, no filler
+- **Use delta $ amounts** (not %) for the topline takeaways — easier to internalize at a glance
+- **Tone:** direct, factual, no emojis — this is the message Nick will forward to senior leadership

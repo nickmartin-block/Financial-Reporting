@@ -10,6 +10,8 @@ Automated financial reporting for Block FP&A using Claude Code. Single slash com
 
 Generates the weekly Block Performance Digest with emoji-coded narrative, detailed overview sections, and formatted performance tables. Pulls from the master pacing sheet and Slack digests, publishes to a dated Google Doc tab, and validates every table cell against the source.
 
+**Pipeline:** Auth → Sheet read → Slack digest scan → Narrative + tables → Save .md → Publish to Google Doc (create tab, insert markdown, set 10pt body font, fix nesting/spacing/bold/colors) → Validate (299 cells) → Slack notification with key takeaways
+
 See [`skills/weekly-reporting/`](skills/weekly-reporting/) for full details.
 
 ### Monthly Topline Flash (`/monthly-flash`)
@@ -38,6 +40,22 @@ Both reporting systems share:
 - **`financial-reporting.md`** — global formatting recipe (rounding, signs, comparison framework, deviation handling)
 - **`gdrive-cli.py`** — CLI tool for Google Sheets, Docs, and Slides operations
 - **Validation pattern** — independent re-read of source data, normalize + compare with rounding tolerance, PASS/FAIL report
+
+---
+
+## Weekly Digest Steps
+
+| Step | What it does |
+|------|-------------|
+| 1 | Auth check (Google Drive + Slack) |
+| 2 | Read master pacing sheet (20+ metrics, monthly + quarterly) |
+| 3 | Scan Slack for Cash App and Square brand digests |
+| 4 | Generate Summary (emoji narrative) + Overview sections (tables + fact lines) |
+| 5 | Save dated .md file |
+| 5.5 | Publish to Google Doc — create tab, insert markdown, set 10pt body font, fix bullet nesting, fix table spacing, bold labels, apply green/red conditional formatting, verify missing lines |
+| 6 | Validate every table cell against source sheet |
+| 7 | Report results to user |
+| 8 | Send Slack DM with key takeaways + doc link |
 
 ---
 
