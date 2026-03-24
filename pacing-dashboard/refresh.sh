@@ -50,6 +50,16 @@ echo ""
 echo "Generating dashboard_data.js..."
 python3 "$DASHBOARD_DIR/refresh.py"
 
+# Validate forecast data against Snowflake
+echo ""
+echo "Validating forecast data against Snowflake..."
+cd "$DASHBOARD_DIR" && uv run validate.py
+VALIDATE_RC=$?
+if [ $VALIDATE_RC -ne 0 ]; then
+    echo ""
+    echo "⚠  Validation failed — review before deploying"
+fi
+
 echo ""
 echo "═══ Done ═══"
 echo "View: https://blockcell.sqprod.co/sites/nmart-pacing-dashboard/dashboard.html"
