@@ -38,6 +38,8 @@ PACING_JSON = "/tmp/pacing_sheet.json"
 CORP_JSON = "/tmp/corp_model.json"
 CONSENSUS_JSON = "/tmp/consensus_model.json"
 COMMENTARY_JSON = "/tmp/commentary.json"  # Optional: written by skill from Innercore doc
+COMMENTS_JSON = "/tmp/dashboard_comments.json"  # Comments sheet
+COMMENTS_SHEET_ID = "1HiiRZFv-CBA3xy2Fbr1T02xW4pgRPlbd2TQIYTNnmW8"
 
 # ─── Q1 2025 Historical Actuals (from Snowflake, fixed) ───
 # Source: APP_HEXAGON.SCHEDULE2.FINANCIAL_METRIC_SUMMARY, scenario='Actual', Q1 2024/2025
@@ -712,7 +714,8 @@ def main():
             "available": True, "note": "",
             "quarterly_forecast": qf,
             "growth_comparisons": {}
-        }
+        },
+        "comments": load_comments()
     }
 
     # Write JS
@@ -740,6 +743,32 @@ def main():
     for q in qf:
         m = q["gp_net_risk"]
         print(f"    {q['quarter']}'26: {m['forecast']} ({m['yoy']}) vs {m['consensus']} ({m['cons_yoy']}) | {m['delta_dollar']}")
+
+
+def load_comments():
+    """Read comments from the Dashboard Comments sheet."""
+    if not os.path.exists(COMMENTS_JSON):
+        return []
+    try:
+        with open(COMMENTS_JSON) as f:
+            data = json.load(f)
+        raw = data.get("values", data) if isinstance(data, dict) else data
+        if not raw or len(raw) < 2:
+            return []
+        # rows[0] is header: [Timestamp, Page, Author, Comment]
+        comments = []
+        for row in raw[1:]:
+            if len(row) >= 4 and row[3]:
+                comments.append({
+                    "timestamp": str(row[0]),
+                    "page": str(row[1]),
+                    "author": str(row[2]),
+                    "comment": str(row[3])
+                })
+        comments.reverse()  # most recent first
+        return comments
+    except Exception:
+        return []
 
 
 if __name__ == "__main__":

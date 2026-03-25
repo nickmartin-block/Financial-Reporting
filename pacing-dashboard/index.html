@@ -342,6 +342,143 @@
       margin-bottom: 8px;
     }
 
+    /* ─── Overview Page ─── */
+    .overview-hero {
+      margin-bottom: 32px;
+    }
+
+    .overview-hero h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 8px;
+      letter-spacing: -0.3px;
+    }
+
+    .overview-hero p {
+      font-size: 14px;
+      color: #555;
+      line-height: 1.7;
+      max-width: 720px;
+    }
+
+    .overview-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #666;
+      margin-bottom: 14px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #1a1a1a;
+    }
+
+    .overview-tabs-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .overview-tab-card {
+      background: #fff;
+      border: 1px solid #e2e5e9;
+      border-left: 3px solid #1a1a1a;
+      border-radius: 8px;
+      padding: 16px 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    .overview-tab-card h4 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 6px;
+    }
+
+    .overview-tab-card .dev-tag {
+      font-size: 10px;
+      font-weight: 700;
+      color: #CC0000;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      margin-left: 6px;
+    }
+
+    .overview-tab-card p {
+      font-size: 13px;
+      color: #555;
+      line-height: 1.6;
+    }
+
+    .overview-tab-card ul {
+      list-style: none;
+      margin-top: 8px;
+    }
+
+    .overview-tab-card ul li {
+      font-size: 12px;
+      color: #555;
+      line-height: 1.6;
+      padding-left: 14px;
+      position: relative;
+    }
+
+    .overview-tab-card ul li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 8px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #999;
+    }
+
+    .overview-note {
+      background: #fff;
+      border: 1px solid #e2e5e9;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    .overview-note p {
+      font-size: 13px;
+      color: #555;
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+
+    .overview-note p:last-child {
+      margin-bottom: 0;
+    }
+
+    .overview-note .note-label {
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+
+    .overview-note .note-warning {
+      color: #CC0000;
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .overview-contact {
+      font-size: 12px;
+      color: #999;
+      margin-top: 24px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e5e9;
+    }
+
+    .overview-contact a {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+
     /* ─── Preliminary Banner ─── */
     .preliminary-banner {
       color: #CC0000;
@@ -507,6 +644,74 @@
       margin-top: -4px;
     }
 
+    .mention-wrapper {
+      position: relative;
+    }
+
+    .mention-dropdown {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      background: #fff;
+      border: 1px solid #e2e5e9;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 50;
+    }
+
+    .mention-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .mention-item:hover {
+      background: #f5f7fa;
+    }
+
+    .mention-item-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: #1a1a1a;
+    }
+
+    .mention-item-alias {
+      font-size: 12px;
+      color: #1a73e8;
+      font-weight: 500;
+    }
+
+    .comments-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .comment-clear-btn {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      color: #999;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+
+    .comment-clear-btn:hover {
+      color: #CC0000;
+      background: #fce8e8;
+    }
+
     /* ─── Responsive ─── */
     @media (max-width: 800px) {
       .scorecard-grid.block { grid-template-columns: 1fr; }
@@ -531,19 +736,70 @@
 
   <!-- ═══ Tabs ═══ -->
   <nav class="tabs">
-    <div class="tab active" data-page="page1">Q1 Pacing</div>
+    <div class="tab active" data-page="page-overview">Overview</div>
+    <div class="tab" data-page="page1">Q1 Pacing</div>
     <div class="tab" data-page="page-updates">Additional Updates</div>
+    <div class="tab" data-page="page-consensus">Constants</div>
     <div class="tab" data-page="page2">FY2026 Outlook</div>
   </nav>
 
   <!-- ═══════════════════════════════════════════════════ -->
+  <!-- PAGE: Overview                                       -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="page active" id="page-overview">
+
+    <div class="overview-hero">
+      <h2>Block Performance Dashboard</h2>
+      <p>This dashboard is Amrita's primary reference for business performance — a single source of truth covering where we are pacing, what's changed, and what needs attention. Updated each Tuesday by Corporate FP&amp;A, it consolidates quarterly projections and year-over-year trends into one view for innercore.</p>
+    </div>
+
+    <div class="overview-section-title">What's Inside</div>
+    <div class="overview-tabs-grid">
+
+      <div class="overview-tab-card">
+        <h4>Quarterly Pacing</h4>
+        <p>The current quarter's performance snapshot, refreshed weekly. Includes:</p>
+        <ul>
+          <li>Current quarter projections with week-over-week movement</li>
+          <li>Year-over-year growth performance across Block, Cash App, and Square</li>
+          <li>Performance versus plan and guidance for each financial and operational KPI</li>
+          <li>Key takeaways summarized by Corporate FP&amp;A</li>
+        </ul>
+      </div>
+
+      <div class="overview-tab-card">
+        <h4>Additional Updates</h4>
+        <p>Material watch points and commentary from Block's strategic finance partners on business performance trends, emerging risks, and any items requiring executive attention.</p>
+      </div>
+
+      <div class="overview-tab-card">
+        <h4>FY2026 Outlook <span class="dev-tag">Preliminary — Under Development</span></h4>
+        <p>A forward-looking view of the full-year forecast — tracking Block's growth and profitability outlook relative to external consensus estimates throughout the year. This section is actively being built out.</p>
+      </div>
+
+    </div>
+
+    <div class="overview-section-title">Discussion &amp; Comments</div>
+    <div class="overview-note">
+      <p>Each page includes a <span class="note-label">Discussion</span> section at the bottom where team members can post comments and tag colleagues using @name (e.g., @amrita). Tagged individuals receive an email notification with the comment and a link to the dashboard.</p>
+      <p>An automated refresh runs at <span class="note-label">9:00 AM and 2:00 PM PT each Tuesday</span> to ensure all comments are visible to everyone.</p>
+      <p class="note-warning">Please do not use the "Clear all" button — Corporate FP&amp;A will clear comment threads as needed.</p>
+    </div>
+
+    <div class="overview-contact">
+      Questions or feedback? Reach out to <a href="mailto:nmart@block.xyz">nmart@block.xyz</a>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
   <!-- PAGE 1: Current Quarter Pacing                      -->
   <!-- ═══════════════════════════════════════════════════ -->
-  <div class="page active" id="page1">
+  <div class="page" id="page1">
 
     <!-- Key Takeaways -->
     <div class="takeaways" id="takeaways-p1">
-      <h3>Key Takeaways</h3>
+      <h3>Key Takeaways <span style="font-weight:400; font-style:italic; font-size:10px; letter-spacing:0.3px; color:#999">Authored by Corporate FP&amp;A</span></h3>
       <ul>
         <li><strong>Gross profit</strong> is expected to land at <strong>$2.90B</strong>, +27% YoY, <strong>+$100M vs. consensus</strong></li>
         <li><strong>Adjusted operating income</strong> is expected to land at <strong>$638M</strong>, 22% margin, <strong>+$27M vs. consensus</strong></li>
@@ -617,7 +873,7 @@
 
     <!-- Key Takeaways -->
     <div class="takeaways">
-      <h3>Key Takeaways</h3>
+      <h3>Key Takeaways <span style="font-weight:400; font-style:italic; font-size:10px; letter-spacing:0.3px; color:#999">Authored by Numerius</span></h3>
       <ul>
         <li id="fwd-takeaway-1"></li>
         <li id="fwd-takeaway-2"></li>
@@ -662,11 +918,23 @@
 
   </div>
 
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- PAGE: Constants                                     -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="page" id="page-consensus">
+    <div class="updates-empty-state">
+      <div class="updates-empty-title">Constants</div>
+      <p>This section is under development.</p>
+    </div>
+  </div>
+
   <!-- ═══ Chart.js ═══ -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
   <!-- ═══ Data ═══ -->
   <script src="dashboard_data.js"></script>
+  <script src="comments_data.js"></script>
+  <script src="directory_data.js"></script>
 
   <!-- ═══ Rendering Logic ═══ -->
   <script>
@@ -768,7 +1036,7 @@
         if (col === 'Q1 AP') return row.ap;
         if (col === 'Q1 Guidance') return row.guidance || '--';
         if (col === 'vs. Guide') return row.vs_guide || '--';
-        if (col === 'Q1 Consensus') return row.consensus || '--';
+        if (col === 'Q1 Constants') return row.consensus || '--';
         if (col === 'Cons YoY') return row.cons_yoy || '--';
         if (col === 'vs. Cons') return row.vs_cons || row.vs_comp || '--';
         return '--';
@@ -778,7 +1046,7 @@
     // ─── Render Forward-Look Tables ───
     function renderForwardTable(tableId, metric, quarters) {
       const table = document.getElementById(tableId);
-      const cols = ['Quarter', 'Internal Forecast', 'YoY Growth', 'Consensus', 'Cons YoY', '$ Delta', 'Growth Delta'];
+      const cols = ['Quarter', 'Internal Forecast', 'YoY Growth', 'Constants', 'Cons YoY', '$ Delta', 'Growth Delta'];
 
       let html = '<thead><tr>';
       cols.forEach(col => { html += `<th>${col}</th>`; });
@@ -805,7 +1073,7 @@
     // ─── Render AOI Forward Table (margin-based) ───
     function renderAoiForwardTable(tableId, quarters) {
       const table = document.getElementById(tableId);
-      const cols = ['Quarter', 'Internal Forecast', 'Margin', 'Consensus', 'Cons Margin', '$ Delta', 'Margin Delta'];
+      const cols = ['Quarter', 'Internal Forecast', 'Margin', 'Constants', 'Cons Margin', '$ Delta', 'Margin Delta'];
 
       let html = '<thead><tr>';
       cols.forEach(col => { html += `<th>${col}</th>`; });
@@ -1082,13 +1350,29 @@
       localStorage.setItem('dashboard-comments', JSON.stringify(stored));
     }
 
-    function loadCommentsIntoCache() {
+    function loadAllComments() {
       commentsCache = {};
-      getStoredComments().forEach(c => {
+
+      // 1. Server comments — prefer comments_data.js (refreshed frequently),
+      //    fall back to dashboard_data.js (refreshed weekly)
+      var serverComments = (typeof DASHBOARD_COMMENTS !== 'undefined' && DASHBOARD_COMMENTS.length)
+        ? DASHBOARD_COMMENTS : (D.comments || []);
+      serverComments.forEach(c => {
         if (!commentsCache[c.page]) commentsCache[c.page] = [];
         commentsCache[c.page].push(c);
       });
-      // Sort each page's comments most-recent-first
+
+      // 2. Local comments (posted since last refresh, visible to poster only)
+      getStoredComments().forEach(c => {
+        if (!commentsCache[c.page]) commentsCache[c.page] = [];
+        // Dedup: skip if server already has this comment (match author + text)
+        const isDup = commentsCache[c.page].some(sc =>
+          sc.author === c.author && sc.comment === c.comment
+        );
+        if (!isDup) commentsCache[c.page].push(c);
+      });
+
+      // Sort each page most-recent-first
       Object.keys(commentsCache).forEach(page => {
         commentsCache[page].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       });
@@ -1099,11 +1383,17 @@
       if (!container) return;
       const savedName = localStorage.getItem('dashboard-comment-name') || '';
       container.innerHTML = `
-        <h3 class="comments-header">Discussion</h3>
+        <div class="comments-header-row">
+          <h3 class="comments-header" style="margin-bottom:0">Discussion</h3>
+          <button class="comment-clear-btn" onclick="clearAllComments()">Clear all</button>
+        </div>
         <div class="comment-form">
           <input type="text" placeholder="Your name" class="comment-name-input" value="${escapeHtml(savedName)}">
-          <textarea placeholder="Add a comment..." rows="3" class="comment-text-input"></textarea>
-          <div class="comment-form-hint">Use @name to notify someone (e.g. @amrita)</div>
+          <div class="mention-wrapper">
+            <textarea placeholder="Add a comment..." rows="3" class="comment-text-input"></textarea>
+            <div class="mention-dropdown" style="display:none"></div>
+          </div>
+          <div class="comment-form-hint">Type @ to mention someone</div>
           <div class="comment-form-actions">
             <button class="comment-submit-btn" onclick="submitComment('${pageId}')">Post Comment</button>
             <span class="comment-status"></span>
@@ -1167,7 +1457,7 @@
 
       // Store locally and display immediately (optimistic update)
       storeComment(PAGE_LABELS[pageId], author, comment);
-      loadCommentsIntoCache();
+      loadAllComments();
       renderComments(pageId);
 
       textInput.value = '';
@@ -1177,10 +1467,91 @@
       setTimeout(() => { statusEl.textContent = ''; btn.disabled = false; }, 1500);
     }
 
+    function clearAllComments() {
+      if (!confirm('Clear all comments across all pages? This cannot be undone.')) return;
+
+      // Clear Google Sheet via Apps Script
+      if (COMMENTS_API_URL) {
+        new Image().src = COMMENTS_API_URL + '?action=clear';
+      }
+
+      // Clear local storage
+      localStorage.removeItem('dashboard-comments');
+
+      // Refresh display (server comments will return on next refresh)
+      loadAllComments();
+      Object.keys(PAGE_LABELS).forEach(pid => renderComments(pid));
+    }
+
+    // ─── @Mention Autocomplete ───
+    function initMentionAutocomplete(container) {
+      var textarea = container.querySelector('.comment-text-input');
+      var dropdown = container.querySelector('.mention-dropdown');
+      if (!textarea || !dropdown) return;
+      var dir = (typeof DASHBOARD_DIRECTORY !== 'undefined') ? DASHBOARD_DIRECTORY : [];
+
+      textarea.addEventListener('input', function() {
+        var val = this.value;
+        var pos = this.selectionStart;
+        var before = val.substring(0, pos);
+
+        // Find the last @ that starts a mention (at start or after whitespace)
+        var atIndex = -1;
+        for (var i = before.length - 1; i >= 0; i--) {
+          if (before[i] === '@' && (i === 0 || /\s/.test(before[i - 1]))) {
+            atIndex = i;
+            break;
+          }
+          if (/\s/.test(before[i])) break;
+        }
+
+        if (atIndex === -1) { dropdown.style.display = 'none'; return; }
+
+        var query = before.substring(atIndex + 1).toLowerCase();
+        var matches = dir.filter(function(d) {
+          return d.name.toLowerCase().includes(query) || d.alias.toLowerCase().includes(query);
+        });
+        if (query.length === 0) matches = dir;
+        if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+
+        dropdown.innerHTML = matches.map(function(d) {
+          return '<div class="mention-item" data-alias="' + escapeHtml(d.alias) + '">'
+            + '<span class="mention-item-name">' + escapeHtml(d.name) + '</span>'
+            + '<span class="mention-item-alias">@' + escapeHtml(d.alias) + '</span>'
+            + '</div>';
+        }).join('');
+        dropdown.style.display = 'block';
+
+        dropdown.querySelectorAll('.mention-item').forEach(function(item) {
+          item.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            var alias = this.getAttribute('data-alias');
+            var after = val.substring(pos);
+            textarea.value = before.substring(0, atIndex) + '@' + alias + ' ' + after;
+            textarea.selectionStart = textarea.selectionEnd = atIndex + alias.length + 2;
+            dropdown.style.display = 'none';
+            textarea.focus();
+          });
+        });
+      });
+
+      textarea.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') dropdown.style.display = 'none';
+      });
+      textarea.addEventListener('blur', function() {
+        setTimeout(function() { dropdown.style.display = 'none'; }, 150);
+      });
+    }
+
     // Initialize
     Object.keys(PAGE_LABELS).forEach(pid => renderCommentSection(pid));
-    loadCommentsIntoCache();
+    loadAllComments();
     Object.keys(PAGE_LABELS).forEach(pid => renderComments(pid));
+    // Wire up autocomplete on each comment section
+    Object.keys(PAGE_LABELS).forEach(pid => {
+      var c = document.getElementById('comments-' + pid);
+      if (c) initMentionAutocomplete(c);
+    });
   </script>
 </body>
 </html>

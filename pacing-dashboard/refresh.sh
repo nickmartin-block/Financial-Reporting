@@ -45,6 +45,12 @@ cd "$GDRIVE" && uv run gdrive-cli.py sheets read \
     --sheet "Visible Alpha Consensus Summary" > /tmp/consensus_model.json 2>/dev/null
 echo "  ✓ Consensus model loaded"
 
+echo "Reading comments..."
+cd "$GDRIVE" && uv run gdrive-cli.py sheets read \
+    1HiiRZFv-CBA3xy2Fbr1T02xW4pgRPlbd2TQIYTNnmW8 \
+    --sheet "Sheet1" > /tmp/dashboard_comments.json 2>/dev/null
+echo "  ✓ Comments loaded"
+
 # Generate dashboard data
 echo ""
 echo "Generating dashboard_data.js..."

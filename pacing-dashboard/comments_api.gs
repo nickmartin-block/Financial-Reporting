@@ -8,6 +8,14 @@ function doGet(e) {
   var sheet = ss.getSheetByName(SHEET_NAME);
   var callback = e.parameter.callback || '';
 
+  if (e.parameter.action === 'clear') {
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      sheet.deleteRows(2, lastRow - 1);
+    }
+    return respond({ success: true, cleared: lastRow - 1 }, callback);
+  }
+
   if (e.parameter.action === 'post') {
     var page = e.parameter.page;
     var author = e.parameter.author;
