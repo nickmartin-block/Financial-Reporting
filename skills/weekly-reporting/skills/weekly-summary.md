@@ -1,6 +1,6 @@
 ---
 name: weekly-summary
-description: Generate a combined weekly performance summary with tables and narrative from the master pacing sheet and Slack brand digests. Outputs a dated MD file, then publishes to Google Doc. Invoke via /weekly-summary.
+description: Generate a weekly performance summary with narrative from the master pacing sheet and Slack brand digests. Outputs a dated MD file, then publishes commentary to a template Google Doc tab and populates pre-formatted tables via batch-update. Invoke via /weekly-summary.
 depends-on: [financial-reporting, financial-reporting-weekly, weekly-tables]
 allowed-tools:
   - Bash(cd ~/skills/gdrive && uv run gdrive-cli.py:*)
@@ -9,7 +9,7 @@ allowed-tools:
   - Write
 metadata:
   author: nmart
-  version: "1.1"
+  version: "2.0"
   status: active
 ---
 
@@ -60,7 +60,7 @@ For each metric, extract:
 - **vs Forecast delta%** and **delta$** (vs AP for Q1, vs Q2OL for Q2, etc.)
 - **WoW change** (change from prior week, if available)
 
-**Cash ex-Commerce GP delta $**: Pull the dollar pacing amount directly from columns W and X of the summary tab — these are the source of truth. Do not compute or round from other columns.
+**Delta computation rule**: Never compute a delta from rounded or display-formatted numbers. Always use raw cell values from the sheet, or use pre-computed delta columns where they exist (e.g., columns W and X for Cash ex-Commerce GP delta $). Rounding before computing causes mismatches.
 
 Assign an emoji based on vs-forecast delta only:
 - Green circle = delta > +0.5%

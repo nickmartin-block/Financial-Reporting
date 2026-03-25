@@ -2,7 +2,9 @@
 
 Generate a management-ready Block Performance Digest combining pacing metrics with Cash App commentary from Slack. The output has two layers: a **Summary** (comprehensive emoji-coded narrative) and **Overview** sections (plain-text reference detail, with performance tables).
 
-**Dependencies:** Before generating, read `~/skills/weekly-reporting/skills/weekly-tables.md` for table construction rules (column mapping, row groups, cell formatting). Read `~/skills/weekly-reporting/skills/financial-reporting.md` for global formatting standards.
+**Dependencies:** Read `~/skills/weekly-reporting/skills/financial-reporting.md` for global formatting standards. Read `~/skills/weekly-reporting/skills/weekly-tables.md` for the table population logic (batch-update approach — tables are pre-formatted in the template tab, not generated as markdown).
+
+**Template tab requirement:** Nick must create the template tab in the Google Doc before running this command. The template tab contains headings and pre-formatted tables with empty data cells. See weekly-tables.md for template structure details.
 
 ---
 
@@ -35,7 +37,7 @@ Extract every in-scope metric from the sheet. The metrics to pull:
 
 | Section | Metrics |
 |---------|---------|
-| Gross Profit | Block GP, Cash App GP, Square GP, Proto GP, TIDAL GP, Cash ex-Commerce GP, Lending GP, Non-Lending GP |
+| Gross Profit | Block GP, Cash App GP, Square GP, Proto GP, TIDAL GP, Cash ex-Commerce GP, Lending GP, Non-Lending GP (see note below) |
 | Profitability | Adjusted Operating Income (+ margin), Rule of 40 |
 | Square GPV | Global GPV, US GPV, International GPV |
 | Cash App Inflows (ex-Commerce) | Actives, Inflows per Active, Monetization Rate |
@@ -75,7 +77,7 @@ Compute deltas vs guidance/consensus as: (Q1 Pacing - Benchmark) / Benchmark, or
 - Q1 pacing, Q1 AP, Q1 delta vs AP (pts), Q1 Guidance, Q1 Consensus
 - Decompose as: GP growth% + AOI margin%
 
-**Cash ex-Commerce GP delta $**: Pull the dollar pacing amount directly from columns W and X of the summary tab — these are the source of truth. Do not compute or round from other columns.
+**Delta computation rule**: Never compute a delta from rounded or display-formatted numbers. Always use raw cell values from the sheet, or use pre-computed delta columns where they exist (e.g., columns W and X for Cash ex-Commerce GP delta $). Rounding before computing causes mismatches.
 
 **AOI OpEx breakdown**: Compute the monthly AOI delta vs AP breakdown:
 - GP contribution = Block GP monthly delta vs AP ($)
@@ -90,6 +92,12 @@ Assign an emoji based on vs-forecast delta% only:
 For metrics measured in basis points (monetization rates), compute the proportional delta% as (Pacing - AP) / AP to determine the emoji.
 
 If a metric is missing from the sheet, note it as `[DATA MISSING: {metric}]`.
+
+**Lending / Non-Lending GP breakout:** These are located in the "Cash App Ex-Commerce Breakdown" section of the summary sheet, approximately rows 127–133:
+- Row with label `Lending GP`: value, then `YoY %` row, then `Delta vs. AP (%)` row
+- Row with label `Non-Lending GP`: value, then `YoY %` row, then `Delta vs. AP (%)` row
+- Same column mapping as section 1a (cols 11–13 for monthly, 17–18 for Q1 Pacing/AP)
+- Use these to populate the Lending vs. Non-Lending bullets in the Summary section
 
 ---
 
@@ -135,7 +143,7 @@ Combine the sheet data and Slack message into a markdown file with two layers:
 1. **Summary** — comprehensive emoji-coded narrative (the main content)
 2. **Overview sections** — plain-text fact lines + performance table, NO emojis
 
-Each Overview section includes bulleted fact lines with proper nesting (see template below), followed by a **markdown table** with 3-row header (year/type/month) and a separator column between monthly and quarterly groups. Metric labels in bullets must be **bold**. Generate tables following `~/skills/weekly-reporting/skills/weekly-tables.md` (column mapping, row groups, cell formatting). The table data comes from the same sheet read in Step 2 — no additional API calls needed.
+Each Overview section includes bulleted fact lines with proper nesting (see template below). Metric labels in bullets must be **bold**. Tables are NOT generated in the markdown — they are pre-formatted in the template tab and populated separately by the weekly-tables skill via Docs API batch-update.
 
 ### Template
 
@@ -165,6 +173,8 @@ Each Overview section includes bulleted fact lines with proper nesting (see temp
     - [emoji] **Monetization rate (vs. AP)** is pacing to [Value] ([YoY bps] bps YoY) in [Month], [in-line with / above / below] AP
 - [emoji] **Proto gross profit** is pacing to [Value] in [Month], [AP delta $] [above/below] AP, [Q1 context]. [MANUAL: qualitative context — e.g., timing of deal close, partnership discussions, etc.]
 
+*(blank line — ensure a non-bulleted blank paragraph separates Proto from Profitability)*
+
 [emoji] **Profitability: Q1 Adjusted Operating Income** is pacing to [AOI Q1 Value] ([margin]% margin), [Guidance delta]% ([Guidance delta $]) [above/below] guidance, and [Consensus delta]% ([Consensus delta $]) [above/below] consensus. [Synthesize WoW driver context — no attribution. E.g., "The modest decrease WoW ([WoW $]) is driven by topline softness from Cash App and Square due to..."]
 
 ---
@@ -183,16 +193,12 @@ For additional details on performance for each brand, please reference the mater
     - **TIDAL gross profit** is pacing to [Value] ([YoY]% YoY), [AP context].
 - [Q]'[YY] **Block gross profit** is pacing to [Q1 Value — $B] ([Q1 YoY]% YoY), [Q1 AP delta]% ([Q1 AP delta $]) [above/below] AP, [Q1 Guidance delta]% ([Q1 Guidance delta $]) [above/below] guidance, [Q1 Consensus delta]% ([Q1 Consensus delta $]) [above/below] consensus.
 
-[TABLE: GP Performance — Metric | Jan'26 Actual | Feb'26 Actual | Mar'26 Pacing | Q1'26 Pacing | Q1 AP | Q1 Guidance | Q1 Consensus. Row groups: Block GP, Cash App GP, Square GP, Proto GP, TIDAL GP (each: value / YoY Growth (%) / Delta vs. AP (%)). Blank row between groups. See weekly-tables SKILL.md for column mapping and cell formatting.]
-
 ## Overview: Adjusted Operating Income & Rule of 40
 
 - **Adjusted Operating Income** is pacing to [AOI Month Value] ([AOI Month Margin]% margin) in [Month], [AOI Month AP delta $] [above/below] AP (GP [GP contribution $], OpEx [OpEx contribution $] favorable/unfavorable).
     - We expect to achieve **Rule of [Month Rule of 40]** in [Month] ([Month GP YoY]% growth, [Month AOI Margin]% margin), [Month Rule of 40 AP delta] pts [above/below] AP.
 - For the quarter, **Adjusted Operating Income** is pacing to [AOI Q1 Value] ([Q1 Margin]% margin), [Guidance delta]% ([Guidance delta $]) ahead of/behind guidance, [Consensus delta]% ([Consensus delta $]) ahead of/behind consensus, and [AP delta]% ([AP delta $]) [above/below] AP.
     - For the quarter, the business is expected to deliver **Rule of [Q1 Rule of 40]** ([Q1 GP YoY]% growth, [Q1 Margin]% margin), [Q1 Rule of 40 AP delta] pts [above/below] AP, [Q1 Rule of 40 Guidance delta] pts [above/below] guidance and consensus.
-
-[TABLE: AOI & Rule of 40 — same columns as GP Performance. Row groups: Gross profit (value / YoY% / Delta%), AOI (value / Margin% / Delta%), Rule of 40 (value / Delta pts). See weekly-tables SKILL.md.]
 
 ## Overview: Inflows Framework
 
@@ -202,14 +208,10 @@ For additional details on performance for each brand, please reference the mater
 - **Inflows per active** are pacing to [Value] ([YoY]% YoY) in [Month], [AP delta]% [above/below] AP
 - **Monetization rate** is pacing to [Value] ([YoY bps] bps YoY) in [Month], [AP delta bps] bps [above/below] AP
 
-[TABLE: Cash App Inflows — Metric | Jan'26 Actual | Feb'26 Actual | Mar'26 Pacing | Q1'26 Pacing | Q1 AP | Q1 Consensus. Row groups: Actives, Inflows per Active, Monetization rate (each: value / YoY% / Delta%). See weekly-tables SKILL.md.]
-
 ### Commerce
 
 - **Inflows** are pacing to [Value] ([YoY]% YoY) in [Month], [AP delta]% [above/below] AP
 - **Monetization rate** is pacing to [Value] ([YoY bps] bps YoY) in [Month], [in-line with / above / below] AP
-
-[TABLE: Commerce — Metric | Jan'26 Actual | Feb'26 Actual | Mar'26 Pacing | Q1'26 Pacing | Q1 AP. Row groups: Inflows, Monetization rate (each: value / YoY% / Delta%). See weekly-tables SKILL.md.]
 
 ## Overview: Square GPV
 
@@ -219,7 +221,6 @@ For additional details on performance for each brand, please reference the mater
 - For the quarter, **Global GPV** is pacing to [Q1 Value] ([Q1 YoY]% YoY), [Q1 AP delta]% [above/below] AP
     - **GPV to GP Spread:** Pacing [pacing spread] pts vs. consensus [consensus spread] pts
 
-[TABLE: Square GPV — Metric | Jan'26 Actual | Feb'26 Actual | Mar'26 Pacing | Q1'26 Pacing | Q1 AP | Q1 Consensus. Row groups: Global GPV, US GPV, International GPV (each: value / YoY% / Delta%). See weekly-tables SKILL.md.]
 ```
 
 **If the Cash digest is pending**, note in the source line that the digest is pending. In the Summary, skip WoW driver synthesis and add: "[Cash App WoW driver context pending — digest not yet posted.]"
@@ -263,77 +264,83 @@ Use today's date for the filename.
 
 ## Step 5.5 — Publish to Google Doc
 
-After saving the .md file, publish the content to the Weekly Performance Digest Google Doc.
+After saving the .md file, publish the content to Nick's pre-existing template tab in the Weekly Performance Digest Google Doc. The template tab contains headings and pre-formatted tables with empty data cells.
 
 **Doc ID:** `1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0`
 
-### 5.5a — List tab metadata
+### 5.5a — Find the template tab
 
 ```bash
 cd ~/skills/gdrive && uv run gdrive-cli.py docs tabs 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0
 ```
 
-This returns tab titles and IDs only — do NOT read tab content via `docs get`.
-
 From the response:
 1. Find the current quarter parent tab by matching `{Q}Q{YY}` against today's date (Q1=Jan-Mar, Q2=Apr-Jun, Q3=Jul-Sep, Q4=Oct-Dec)
-2. Check if a tab for today's date already exists under that parent
+2. Find a child tab matching today's date (M/D format, e.g., `3/24`)
+3. If no template tab exists for today's date → **STOP** and tell Nick to create the template tab first. Do NOT create tabs.
 
-### 5.5b — Create quarter parent tab (if needed)
+Capture the tab ID.
 
-Only if no matching quarter parent tab exists (e.g., quarter just turned over):
+### 5.5b — Populate tables (parallel agent)
+
+Spawn a background agent to populate all 5 template tables with values from the pacing sheet (read in Step 2). The agent follows the procedure in `~/skills/weekly-reporting/skills/weekly-tables.md`:
+
+1. Read the Doc template structure via `docs get --include-tabs`
+2. Find all 5 tables, extract empty cell positions (`startIndex` for each data cell)
+3. Map Sheet values to Doc cells using the column/row mapping in weekly-tables.md
+4. Build batch-update JSON: for each cell (sorted by startIndex descending), create `insertText` + `updateTextStyle` (Roboto 10pt) + `updateParagraphStyle` (CENTER) requests
+5. Execute the batch-update
+6. Apply conditional colors on Delta vs. AP rows (green #007A33 for positive, red #CC0000 for negative)
+
+This runs on the pristine template before commentary insertion, so table cell indices are predictable.
+
+**Wait for the table agent to complete before proceeding to 5.5d.**
+
+### 5.5d — Insert commentary sections
+
+Insert the commentary (from the .md file generated in Step 4) into the template tab at the correct positions between headings and tables. Since commentary insertion shifts indices, process sections in **reverse document order** (bottom-to-top).
+
+1. Read the Doc structure via `docs get --include-tabs` to find all heading positions and table positions in the target tab
+2. Build an insertion map — for each section, identify the heading's `endIndex` (where commentary goes):
+
+| Section | Heading Text to Match | Insert After |
+|---|---|---|
+| Square GPV | `Overview: Square GPV` | Heading endIndex |
+| Commerce | `Commerce` (H3) | Heading endIndex |
+| Cash App | `Cash App (Ex Commerce)` (H3) | Heading endIndex |
+| AOI | `Overview: Adjusted Operating Income` | Heading endIndex |
+| GP | `Overview: Gross Profit Performance` | Heading endIndex |
+| Summary | `Summary` (H2) | Heading endIndex |
+
+3. For each section (bottom-to-top), extract the corresponding markdown fragment from the .md file (just the bullet lines for that section, NOT the heading itself — headings are already in the template):
 
 ```bash
-echo '{"requests":[{"addDocumentTab":{"tabProperties":{"title":"XQ2Y"}}}]}' | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0)
+echo '<SECTION_MARKDOWN>' | (cd ~/skills/gdrive && uv run gdrive-cli.py docs insert-markdown 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0 --tab TAB_ID --at-index INSERTION_INDEX --font Inter)
 ```
 
-Use the correct quarter label (e.g., `2Q26`). Capture the new parent tab ID from the response.
+4. The GP section also includes the reference links (Cash App Digest, Square Update) — insert those as part of the GP section commentary.
 
-### 5.5c — Create the weekly date tab
+### 5.5e — Format commentary
 
-If no tab exists for today's date:
+After all commentary sections are inserted, apply formatting fixes. Read the Doc structure once via `docs get --include-tabs`, then build all formatting requests and execute as batch updates.
 
-```bash
-echo '{"requests":[{"addDocumentTab":{"tabProperties":{"title":"M/D","parentTabId":"PARENT_TAB_ID"}}}]}' | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0)
-```
+**1. Set body font size to 10pt:**
 
-Tab naming: `M/D` — no leading zeros (e.g., `3/17`, `4/7`). Use the quarter parent tab ID from 5.5a or 5.5b.
-
-If the tab already exists: ask Nick whether to overwrite or skip. If overwrite, use the existing tab ID.
-
-Capture the new tab ID from the response.
-
-### 5.5d — Write markdown to the tab
-
-```bash
-cat "FILEPATH_FROM_STEP_5" | (cd ~/skills/gdrive && uv run gdrive-cli.py docs insert-markdown 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0 --tab TAB_ID --at-index 1 --font Inter)
-```
-
-Use the file path from Step 5 and the tab ID from 5.5c. Verify the response shows `"status": "ok"`.
-
-### 5.5d½ — Set body font size to 10pt
-
-The markdown converter inserts body text at the Google Docs default (11pt). Override to 10pt for all non-heading content.
-
-1. Read the doc structure via `docs get --include-tabs` and find the target tab
-2. For every paragraph with `namedStyleType` of `NORMAL_TEXT` (skip `HEADING_1`, `HEADING_2`, `HEADING_3`), collect its `startIndex`–`endIndex` range
-3. Include paragraphs inside table cells (they are also `NORMAL_TEXT`)
-4. Batch-update with `updateTextStyle` on each range:
+For every `NORMAL_TEXT` paragraph in the tab (skip `HEADING_1`, `HEADING_2`, `HEADING_3`, and paragraphs inside table cells — those are already Roboto 10pt from the table agent):
 
 ```json
 {"updateTextStyle": {"textStyle": {"fontSize": {"magnitude": 10, "unit": "PT"}}, "fields": "fontSize", "range": {"startIndex": START, "endIndex": END, "tabId": "TAB_ID"}}}
 ```
 
-Combine all ranges into a single batch request for efficiency. This step must run **before** bullet nesting fixes (5.5e) since it does not shift indices.
+**2. Fix bullet nesting:**
 
-### 5.5e — Fix bullet nesting
+The markdown converter renders all bullets flat (level 0). Fix nesting.
 
-The markdown converter renders all bullets flat (level 0) and some intended-bullets as paragraphs. Fix nesting in both the **Summary** and **Overview** sections.
+**CRITICAL: Only modify paragraphs OUTSIDE of tables. Never apply bullet operations to paragraphs inside table cells.** When iterating `body.content`, skip any elements that are inside a `table` element. Table cells should not be touched by any bullet or bold operations.
 
-1. Get paragraph indices from `docs get` (include all tabs)
-2. Identify each bullet section by scanning paragraph text for known labels
-3. `deleteParagraphBullets` on each section range
-4. `insertText` a `\t` (level 1) or `\t\t` (level 2) at the start of each sub-item paragraph (process in **reverse index order**):
+1. Identify each bullet section by scanning paragraph text for known labels (only non-table paragraphs)
+2. `deleteParagraphBullets` on each section range
+3. `insertText` `\t` (level 1) or `\t\t` (level 2) at the start of sub-item paragraphs (process in **reverse index order**):
 
 **Summary sub-items:**
 - Level 1 (`\t`): US GPV, International GPV, Lending vs. Non-Lending, Inflows Framework, Inflows (vs. AP), Monetization rate (vs. AP)
@@ -345,65 +352,29 @@ The markdown converter renders all bullets flat (level 0) and some intended-bull
 
 **Overview Square GPV sub-items (level 1):** US GPV, International GPV, GPV to GP Spread
 
-5. `createParagraphBullets` with `BULLET_DISC_CIRCLE_SQUARE` preset on each section range
-6. Include `tabId` in every range/location object
+4. `createParagraphBullets` with `BULLET_DISC_CIRCLE_SQUARE` preset on each section range
+5. Include `tabId` in every range/location object
 
-### 5.5f — Fix table spacing
-
-The markdown converter places the last bullet immediately before each table, causing table header rows to inherit bullet styling. Insert a blank non-bullet paragraph between the last bullet and each table:
-
-1. For each of the 5 tables, find the last bulleted paragraph before the table
-2. `insertText` `\n` at the end of that paragraph (at position `end - 1`, inside the existing `\n`)
-3. `deleteParagraphBullets` on the new blank paragraph
-
-Process in **reverse index order** so earlier positions aren't affected.
-
-### 5.5g — Bold metric labels in overview commentary
+**3. Bold metric labels in overview commentary:**
 
 Apply `bold: true` via `updateTextStyle` to each metric label in the Overview bullet lines. Bold only the metric name — not "is pacing to..." or other surrounding text.
 
-Labels to bold: Block gross profit, Cash App gross profit, Square gross profit, Proto gross profit, TIDAL gross profit, Adjusted Operating Income, Rule of 40/46/49, Actives, Inflows per active, Monetization rate, Inflows, Global GPV, US GPV, International GPV, GPV to GP Spread:
+Labels to bold: Block gross profit, Cash App gross profit, Square gross profit, Proto gross profit, TIDAL gross profit, Adjusted Operating Income, Rule of 40/46/49, Actives, Inflows per active, Monetization rate, Inflows, Global GPV, US GPV, International GPV, GPV to GP Spread.
 
-Also bold **Global GPV** in the quarterly GPV line ("For the quarter, **Global GPV** is pacing...") — capitalize the G.
+Also bold **Global GPV** in the quarterly GPV line.
 
-### 5.5h — Apply conditional formatting
+**CRITICAL: Only bold text in non-table paragraphs. Never apply bold to table header cells or any text inside table elements.**
 
-After all structural fixes, apply text colors via `updateTextStyle` batch updates.
+**4. Yellow highlight on placeholders:**
 
-**1. Yellow highlight on manual/missing placeholders:**
-
-Find all text ranges containing `[MANUAL` or `[DATA MISSING` in the doc. For each match, apply:
+Find all text ranges containing `[MANUAL` or `[DATA MISSING` in the doc. Apply yellow background:
 ```json
 {"updateTextStyle": {"textStyle": {"backgroundColor": {"color": {"rgbColor": {"red": 1.0, "green": 0.95, "blue": 0.0}}}}, "fields": "backgroundColor", "range": {"startIndex": START, "endIndex": END, "tabId": "TAB_ID"}}}
 ```
 
-**2. Green/red text on Delta vs. AP values in tables:**
-
-For each "Delta vs. AP (%)" and "Delta vs. AP (pts)" row in the doc tables, parse each data cell value:
-- **Positive value** (e.g., `+3.3%`, `+$93M`, `+4 bps`) → green text `{"rgbColor": {"red": 0.0, "green": 0.48, "blue": 0.2}}` (#007A33)
-- **Negative value** (e.g., `(1.6%)`, `($4.8M)`, `(5 bps)`) → red text `{"rgbColor": {"red": 0.8, "green": 0.0, "blue": 0.0}}` (#CC0000)
-- **Zero or `--`** → no color change (leave black)
-
-Apply via:
-```json
-{"updateTextStyle": {"textStyle": {"foregroundColor": {"color": {"rgbColor": COLOR}}}, "fields": "foregroundColor", "range": {"startIndex": START, "endIndex": END, "tabId": "TAB_ID"}}}
-```
-
-No inversion needed — OpEx is not present in the weekly tables.
-
-### 5.5i — Verify missing lines
-
-The markdown converter sometimes drops lines adjacent to tables (they become blank bullet paragraphs). After all other fixes, scan for blank bullet paragraphs immediately before tables. If found, check the markdown source for the expected text and insert it. Known lines that get dropped:
-- Q1 Block GP line (before GP table)
-- Quarterly Rule of 40 line (before AOI table)
-- Monetization rate lines (before Inflows tables)
-- GPV to GP Spread line (before Square GPV table)
-
-Insert the text, apply bold to the metric label, and fix bullet nesting as needed.
-
 ### Error handling
 
-If any step in 5.5 fails, skip to Step 6 and report the error. The .md file is already saved — no work is lost. Do not retry automatically (avoids duplicate tabs).
+If any step in 5.5 fails, skip to Step 6 and report the error. The .md file is already saved — no work is lost. Do not retry automatically.
 
 ---
 
@@ -411,7 +382,7 @@ If any step in 5.5 fails, skip to Step 6 and report the error. The .md file is a
 
 After publishing, validate that every number in the Doc's tables matches the master sheet. Follow the full validation procedure in `~/skills/weekly-reporting/skills/weekly-validate.md`, using `~/skills/weekly-reporting/skills/weekly-tables.md` for column mapping.
 
-Use the tab ID from Step 5.5c (skip the tab identification and confirmation steps — you already know the tab).
+Use the tab ID from Step 5.5a (skip the tab identification and confirmation steps — you already know the tab).
 
 **Sheet** (source of truth):
 ```bash

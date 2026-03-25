@@ -1,6 +1,6 @@
 ---
 name: weekly-tables
-description: Construct markdown performance tables from the master pacing sheet for the Block weekly digest. Standalone testing via /weekly-tables. Referenced by weekly-summary for integrated generation.
+description: Populate pre-formatted template tables in the Google Doc with values from the master pacing sheet via Docs API batch-update. Standalone testing via /weekly-tables. Referenced by weekly-summary for integrated table population.
 depends-on: [financial-reporting, financial-reporting-weekly, gdrive]
 allowed-tools:
   - Bash(cd ~/skills/gdrive && uv run gdrive-cli.py:*)
@@ -8,13 +8,16 @@ allowed-tools:
   - Write
 metadata:
   author: nmart
-  version: "1.0.0"
+  version: "2.0.0"
   status: active
 ---
 
 # Weekly Performance Tables
 
-Generate markdown tables from the master pacing sheet for each Overview section of the Block Performance Digest.
+Populate pre-formatted template tables in the Block Performance Digest Google Doc with values from the master pacing sheet. The template tab (created by Nick) contains 5 tables with row labels, column headers, and styling — but empty data cells. This skill reads values from the Sheet and writes them into the Doc via Docs API `batch-update`.
+
+**Doc ID:** `1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0`
+**Sheet ID:** `1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4` (tab: `summary`)
 
 ---
 
@@ -38,233 +41,185 @@ Parse the returned JSON into a 2D array of cell values.
 
 ---
 
-## Step 3 — Identify sheet structure
+## Step 3 — Find the template tab
 
-The sheet has multiple sections, each with its own header rows. Identify sections by scanning column B (index 1) for these labels:
+**Standalone mode:** List tabs and find the current week's date tab.
 
-| Section Label | Table It Feeds |
-|---|---|
-| `1a) Block gross profit` | GP Performance |
-| `1b) Block adjusted OI` | AOI & Rule of 40 |
-| `2) Cash App (Ex Commerce) Inflows Framework` | Inflows — Cash App |
-| `3) Commerce Inflows Framework` | Inflows — Commerce |
-| `4) Square GPV` | Square GPV |
+```bash
+cd ~/skills/gdrive && uv run gdrive-cli.py docs tabs 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0
+```
 
-Each section has its own year/type/month header rows immediately below the section label. However, the column structure is consistent across sections:
+Find the tab matching today's date (M/D format, e.g., `3/24`) under the current quarter parent (e.g., `1Q26`). If no matching tab exists, STOP and tell Nick to create the template tab first.
 
-**Table format: 3-row header with separator column.** Each table uses a 3-row header (year / type / month) matching the 3/17 reference format, plus a blank separator column between monthly and quarterly groups.
+**Integrated mode** (called by weekly-summary): The tab ID is passed in. Skip this step.
 
-**Column layout (9 columns for tables with Guidance + Consensus):**
+---
 
-| Col Index | Header Row 1 (type) | Header Row 2 (month) | Sheet Col |
+## Step 4 — Read Doc template structure
+
+```bash
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0 --include-tabs
+```
+
+Navigate to the target tab in the JSON. Walk `body.content` to find all 5 table elements. For each table:
+
+1. **Identify the table** by the nearest preceding heading text or by scanning the first column (col 0) for row labels:
+   - GP Performance: "Block gross profit" in first data row
+   - AOI & Rule of 40: "Gross profit" in first data row
+   - Cash App Inflows: "Actives" in first data row
+   - Commerce: "Inflows" in first data row
+   - Square GPV: "Global GPV" in first data row
+
+2. **Extract cell positions** for every data cell (row ≥ 3, col ≥ 1, skip separator col 4). For each cell, find the paragraph element's `startIndex` inside `tableCells[col].content[0].paragraph.elements[0]`. Empty cells contain a single `textRun` with content `"\n"` — the `startIndex` of this element is where we insert text.
+
+---
+
+## Step 5 — Map Sheet values to Doc cells
+
+### Column mapping
+
+Doc columns map to Sheet columns (0-indexed from the Sheet JSON `values` array):
+
+| Doc Col | Content | Sheet Col |
+|---|---|---|
+| 0 | Row labels | (skip — already in template) |
+| 1 | Jan Actual | 11 |
+| 2 | Feb Actual | 12 |
+| 3 | Mar Pacing | 13 |
+| 4 | Separator | (skip — always empty) |
+| 5 | Q1 Pacing | 17 |
+| 6 | Q1 AP | 18 |
+| 7 | Q1 Guidance (1a, 1b) or Q1 Consensus (2, 4) | 20 |
+| 8 | Q1 Consensus (1a, 1b only) | 21 |
+
+**Column count by table:**
+
+| Table | Doc Cols | Has Col 7 | Has Col 8 |
 |---|---|---|---|
-| 0 | *(empty)* | *(empty)* | Metric labels (B) |
-| 1 | Actual | January | 11 |
-| 2 | Actual | February | 12 |
-| 3 | Pacing | March | 13 |
-| 4 | *(separator — always empty)* | *(separator)* | — |
-| 5 | Pacing | Q1 | 17 |
-| 6 | Annual Plan | Q1 | 18 |
-| 7 | Guidance | Q1 | 20 (sections 1a, 1b) |
-| 8 | Consensus | Q1 | 21 (sections 1a, 1b) or 20 (sections 2, 4) |
+| GP Performance (1a) | 9 | Guidance (sheet 20) | Consensus (sheet 21) |
+| AOI & Rule of 40 (1b) | 9 | Guidance (sheet 20) | Consensus (sheet 21) |
+| Cash App Inflows (2) | 8 | Consensus (sheet 20) | — |
+| Commerce (3) | 7 | — | — |
+| Square GPV (4) | 8 | Consensus (sheet 20) | — |
 
-Header row 0 (year): all data columns show "2026"; col 0 and col 4 are empty.
+### Row mapping
 
-**Column variations by table:**
+Each table's data rows map to specific Sheet rows. Identify section start rows by scanning column B (index 1) for section labels, then offset to data rows:
 
-| Table | Total Cols | Omitted |
+**GP Performance (section `1a) Block gross profit`):**
+
+| Doc Row | Row Label | Sheet Row Offset from Section |
 |---|---|---|
-| GP Performance (1a) | 9 | — |
-| AOI & Rule of 40 (1b) | 9 | — |
-| Inflows — Cash App (2) | 8 | Col 7 (Guidance); Consensus at col 7 from sheet 20 |
-| Inflows — Commerce (3) | 7 | Col 7 + Col 8 (no Guidance or Consensus) |
-| Square GPV (4) | 8 | Col 7 (Guidance); Consensus at col 7 from sheet 20 |
+| 3 | Block gross profit | +3 (first data row after 3 header rows) |
+| 4 | YoY Growth (%) | +4 |
+| 5 | Delta vs. AP (%) | +5 |
+| 6 | (blank separator) | skip |
+| 7 | Cash App gross profit | +7 |
+| 8–9 | YoY / Delta | +8, +9 |
+| 10 | (blank) | skip |
+| 11–13 | Square GP group | +11, +12, +13 |
+| 14 | (blank) | skip |
+| 15–17 | Proto GP group | +15, +16, +17 |
+| 18 | (blank) | skip |
+| 19–21 | TIDAL GP group | +19, +20, +21 |
 
-**Omit** Guidance or Consensus columns entirely from the table if no data exists for ANY metric in that table.
+**AOI & Rule of 40 (section `1b) Block adjusted OI`):**
 
----
-
-## Step 4 — Identify metric rows
-
-Within each section, locate metric rows by scanning column B (index 1). Each metric has a value row followed by sub-rows:
-
-### GP Performance (from section 1a)
-
-| Row Group | Col B Labels (in order) |
-|---|---|
-| Block GP | `Block gross profit` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-| Cash App GP | `Cash App gross profit` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-| Square GP | `Square gross profit` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-| Proto GP | `Proto gross profit` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-| TIDAL GP | `TIDAL gross profit` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-
-### AOI & Rule of 40 (from section 1b)
-
-| Row Group | Col B Labels (in order) |
-|---|---|
-| Gross profit | `Gross profit` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-| AOI | `Adjusted operating income` → `Margin (%)` → `Delta vs. AP (%)` |
-| Rule of 40 | `Rule of 40` → `Delta vs. AP (pts)` |
-
-### Inflows — Cash App (from section 2)
-
-| Row Group | Col B Labels (in order) |
-|---|---|
-| Actives | `Actives` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-| Inflows per Active | `Inflows per Active` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-| Monetization rate | `Monetization rate` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-
-Note: YoY and Delta rows for monetization rate contain bps values (e.g., `42 bps`, `20 bps`). Display these as-is.
-
-### Inflows — Commerce (from section 3)
-
-| Row Group | Col B Labels (in order) |
-|---|---|
-| Inflows | `Inflows` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-| Monetization rate | `Monetization rate` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-
-Skip Commerce Actives and Inflows per Active rows (they contain `#N/A`).
-
-### Square GPV (from section 4)
-
-| Row Group | Col B Labels (in order) |
-|---|---|
-| Global GPV | `Global GPV` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-| US GPV | `US GPV` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-| International GPV | `International GPV` → `YoY Growth (%)` → `Delta vs. AP (%)` |
-
----
-
-## Step 5 — Cell formatting rules (table-specific)
-
-All formatting inherits from the global recipe (`financial-reporting/SKILL.md`), with these table-specific overrides:
-
-**Negatives:** Always use parentheses in tables — `($38M)`, `(1.6%)`, `(5 bps)`. Convert hyphen-prefixed negatives from the sheet (e.g., `-$38M`) to parenthetical format.
-
-**Time periods in headers:** Use abbreviated format — `Q1'26`, `Mar'26`, `Jan'26`, `Feb'26`.
-
-**Dollar rounding:**
-- Billions: 2 decimals — `$1.04B`, `$2.90B`
-- Millions ≥ $10M: no decimal — `$940M`, `$358M`
-- Millions < $10M: 1 decimal — `$4.2M`, `$9.0M`
-- Use $B for Block GP and GPV figures. Use $M for brand-level GP and AOI.
-
-**Percentage rounding:**
-- < 10%: 1 decimal — `9.0%`, `3.3%`, `7.0%`
-- ≥ 10%: no decimal — `29%`, `24%`, `34%`
-- Exception: GPV YoY in 10–15% range keeps 1 decimal — `12.6%`, `13.1%`
-
-**Basis points:** Integer with space before `bps` — `42 bps`, `30 bps`, `(5 bps)`
-
-**Actives:** 1 decimal — `58.5M`, `57.0M`
-
-**Special values:**
-- `nm` (not meaningful) → display as `nm`
-- `#N/A` → display as `--`
-- Empty/missing → display as `--`
-- Raw decimal values (e.g., `0.2421`) → these are unformatted sheet internals, use the displayed value from the matching formatted row instead
-
-**Signs:** Always include +/- on YoY growth and delta values in tables. Use parentheses for negatives.
-- Positive: `+3.3%`, `+$93M`, `+10 bps`
-- Negative: `(1.6%)`, `($4.8M)`, `(5 bps)`
-- Zero: `0.0%`, `$0M`, `0 bps`
-
----
-
-## Step 6 — Generate markdown tables
-
-For each table, output a markdown table with a **3-row header** and a blank **separator column** (col 4) between monthly and quarterly groups. Use a row of empty cells between row groups as a visual separator.
-
-The 3-row header in markdown: row 0 (year) is the markdown header row; rows 1–2 (type, month) are body rows with an empty first cell. The converter auto-detects these as header rows.
-
-### Table 1: GP Performance
-
-```
-| | 2026 | 2026 | 2026 | | 2026 | 2026 | 2026 | 2026 |
-|---|---|---|---|---|---|---|---|---|
-| | Actual | Actual | Pacing | | Pacing | Annual Plan | Guidance | Consensus |
-| | January | February | March | | Q1 | Q1 | Q1 | Q1 |
-| Block gross profit | [val] | [val] | [val] | | [val] | [val] | [val] | [val] |
-| YoY Growth (%) | [val] | [val] | [val] | | [val] | [val] | [val] | [val] |
-| Delta vs. AP (%) | [val] | [val] | [val] | | [val] | -- | [val] | [val] |
-| | | | | | | | | |
-| Cash App gross profit | [val] | [val] | [val] | | [val] | [val] | -- | [val] |
-| YoY Growth (%) | ... | ... | ... | | ... | ... | -- | ... |
-| Delta vs. AP (%) | ... | ... | ... | | ... | -- | -- | ... |
-| | | | | | | | | |
-| Square gross profit | ... |
-...
-```
-
-### Table 2: AOI & Rule of 40
-
-Same 9-column layout as Table 1. Row groups: Gross profit (3 rows), AOI (3 rows), Rule of 40 (2 rows — value + Delta vs. AP (pts)).
-
-### Table 3: Inflows — Cash App (Ex Commerce)
-
-8 columns (no Guidance). Same 3-row header; Consensus at col 7.
-
-```
-| | 2026 | 2026 | 2026 | | 2026 | 2026 | 2026 |
-|---|---|---|---|---|---|---|---|
-| | Actual | Actual | Pacing | | Pacing | Annual Plan | Consensus |
-| | January | February | March | | Q1 | Q1 | Q1 |
-```
-
-Row groups: Actives (3 rows), Inflows per Active (3 rows), Monetization rate (3 rows).
-
-### Table 4: Inflows — Commerce
-
-7 columns (no Guidance or Consensus). Same 3-row header.
-
-```
-| | 2026 | 2026 | 2026 | | 2026 | 2026 |
-|---|---|---|---|---|---|---|
-| | Actual | Actual | Pacing | | Pacing | Annual Plan |
-| | January | February | March | | Q1 | Q1 |
-```
-
-Row groups: Inflows (3 rows), Monetization rate (3 rows).
-
-### Table 5: Square GPV
-
-8 columns (same as Table 3). Row groups: Global GPV (3 rows), US GPV (3 rows), International GPV (3 rows).
-
----
-
-## Step 6b — Conditional color rules (applied post-insertion in Google Doc)
-
-These rules are applied by the weekly-summary publishing pipeline (Step 5.5h) after table markdown is inserted into the Doc. They do not affect the markdown output itself.
-
-**Delta vs. AP rows** — "Delta vs. AP (%)" and "Delta vs. AP (pts)" row cells get colored text:
-
-| Cell Value | Text Color | Hex |
+| Doc Row | Row Label | Sheet Row Offset |
 |---|---|---|
-| Positive (`+3.3%`, `+$93M`, `+4 bps`) | Green | `#007A33` |
-| Negative (`(1.6%)`, `($4.8M)`, `(5 bps)`) | Red | `#CC0000` |
-| Zero or `--` | Black (no change) | — |
+| 3–5 | Gross profit group | +3, +4, +5 |
+| 6 | (blank) | skip |
+| 7–9 | AOI group | +7, +8, +9 |
+| 10 | (blank) | skip |
+| 11 | Rule of 40 | +11 |
+| 12 | Delta vs. AP (pts) | +12 |
 
-No inversion needed — OpEx is not present in the weekly tables.
+**Cash App Inflows (section `2) Cash App (Ex Commerce)`):**
+
+| Doc Row | Row Label | Sheet Row Offset |
+|---|---|---|
+| 3–5 | Actives group | +3, +4, +5 |
+| 6 | (blank) | skip |
+| 7–9 | Inflows per Active group | +7, +8, +9 |
+| 10 | (blank) | skip |
+| 11–13 | Monetization rate group | +11, +12, +13 |
+
+**Commerce (section `3) Commerce Inflows Framework`):**
+
+Uses Commerce-specific row offsets. Scan for `Inflows` label (skip Actives/IPA rows which contain `#N/A`):
+
+| Doc Row | Row Label | Sheet Row Offset from `Inflows` label |
+|---|---|---|
+| 3–5 | Inflows group | 0, +1, +2 |
+| 6 | (blank) | skip |
+| 7–9 | Monetization rate group | +4, +5, +6 |
+
+**Square GPV (section `4) Square GPV`):**
+
+| Doc Row | Row Label | Sheet Row Offset |
+|---|---|---|
+| 3–5 | Global GPV group | +3, +4, +5 |
+| 6 | (blank) | skip |
+| 7–9 | US GPV group | +7, +8, +9 |
+| 10 | (blank) | skip |
+| 11–13 | International GPV group | +11, +12, +13 |
+
+### Value extraction
+
+For each mapped cell, read the value from `sheet_data[sheet_row][sheet_col]`:
+- If the value is non-empty and not a raw decimal internal → use it as-is (the Sheet already has display-formatted values like `$940M`, `29%`, `42 bps`)
+- If the value is empty, missing, or `#N/A` → use `--`
+- If the value looks like a raw decimal (e.g., `0.2421`, `1040843820.9176`) → skip it, use the formatted value from the corresponding display column instead
 
 ---
 
-## Step 7 — Output
+## Step 6 — Build and execute batch-update
 
-**Standalone mode** (`/weekly-tables`): Write all 5 tables to a single file:
+For each data cell that has a value, create three requests:
 
+1. **`insertText`** — insert the value at the cell's `startIndex` (before the existing `\n`)
+2. **`updateTextStyle`** — set Roboto 10pt on the inserted text range `[startIndex, startIndex + len(value)]`
+3. **`updateParagraphStyle`** — set CENTER alignment on the cell paragraph `[startIndex, startIndex + len(value) + 1]`
+
+**Critical:** Include `"tabId": "TAB_ID"` in every `location` and `range` object.
+
+**Critical:** Sort ALL requests by `startIndex` **descending** (highest first). Since requests are applied sequentially, inserting at higher indices first means lower indices remain valid for subsequent insertions.
+
+Execute as a single batch-update:
+
+```bash
+echo '<JSON>' | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0)
 ```
-~/Desktop/Nick's Cursor/Weekly Reporting/weekly_tables_YYYY-MM-DD.md
+
+Verify the response shows `"status": "ok"`.
+
+---
+
+## Step 7 — Apply conditional colors on Delta rows
+
+After populating values, apply green/red text color to "Delta vs. AP" rows.
+
+1. **Re-read the Doc structure** (cell indices have shifted from Step 6 insertions):
+
+```bash
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0 --include-tabs
 ```
 
-Use today's date. Each table should have a markdown heading above it matching the Overview section name.
+2. For each table, find the "Delta vs. AP (%)" and "Delta vs. AP (pts)" rows by scanning column 0 text.
 
-**Integrated mode** (called by weekly-summary): Return the table markdown for each section to be embedded in the weekly summary MD at the appropriate position (above fact lines in each Overview section).
+3. For each data cell in those rows: collect ALL text runs in the cell (the `%` sign may be a separate text run from the number). Concatenate text to determine sign, then use the full range from `first_textRun.startIndex` to `last_textRun.startIndex + len(last_text)` for the color:
+   - **Positive** (no parens, not zero, not `--`, not `nm`) → green: `{"rgbColor": {"red": 0.0, "green": 0.48, "blue": 0.2}}`
+   - **Negative** (starts with `(` or `-`) → red: `{"rgbColor": {"red": 0.8, "green": 0.0, "blue": 0.0}}`
+   - **Zero** (`0.0%`, `0%`, `$0M`, `0 bps`, `0pts`) or `--` → no color change
+
+4. Build `updateTextStyle` requests with `foregroundColor` for each colored cell. The range must span ALL text runs in the cell (not just the first). Execute as a batch-update.
 
 ---
 
 ## Step 8 — Report back
 
 Tell Nick:
-- How many tables generated (expect 5)
-- Any cells that fell back to `--` (metric + column)
-- Any formatting edge cases encountered
+- How many cells populated across all 5 tables
+- Any cells that fell back to `--` (table + metric + column)
+- Conditional colors applied (count of green/red cells)
+- Any issues encountered
