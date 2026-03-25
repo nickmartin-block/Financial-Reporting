@@ -27,7 +27,11 @@ Stop if auth cannot be resolved.
 
 ---
 
-## Step 2 — Read the master pacing sheet
+## Step 2 — Read pacing sheet + search Slack (parallel)
+
+**Run both of these concurrently** — they are independent data sources with no dependency on each other. Both depend only on auth (Step 1).
+
+### 2a — Read the master pacing sheet
 
 ```bash
 cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4 --sheet summary
@@ -99,9 +103,7 @@ If a metric is missing from the sheet, note it as `[DATA MISSING: {metric}]`.
 - Same column mapping as section 1a (cols 11–13 for monthly, 17–18 for Q1 Pacing/AP)
 - Use these to populate the Lending vs. Non-Lending bullets in the Summary section
 
----
-
-## Step 3 — Search Slack for brand digests
+### 2b — Search Slack for brand digests
 
 Pull the latest messages from the weekly reporting group DM:
 
@@ -137,7 +139,7 @@ Scan the same channel for the most recent message from **jerbe** (James Erbe, us
 
 ---
 
-## Step 4 — Generate the summary
+## Step 3 — Generate the summary
 
 Combine the sheet data and Slack message into a markdown file with two layers:
 1. **Summary** — comprehensive emoji-coded narrative (the main content)
@@ -251,7 +253,7 @@ For additional details on performance for each brand, please reference the mater
 
 ---
 
-## Step 5 — Save the file
+## Step 4 — Save the file
 
 Write to:
 ```
@@ -262,13 +264,13 @@ Use today's date for the filename.
 
 ---
 
-## Step 5.5 — Publish to Google Doc
+## Step 5 — Publish to Google Doc
 
 After saving the .md file, publish the content to Nick's pre-existing template tab in the Weekly Performance Digest Google Doc. The template tab contains headings and pre-formatted tables with empty data cells.
 
 **Doc ID:** `1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0`
 
-### 5.5a — Find the template tab
+### 5a — Find the template tab
 
 ```bash
 cd ~/skills/gdrive && uv run gdrive-cli.py docs tabs 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0
@@ -281,7 +283,7 @@ From the response:
 
 Capture the tab ID.
 
-### 5.5b — Populate tables (parallel agent)
+### 5b — Populate tables (parallel agent)
 
 Spawn a background agent to populate all 5 template tables with values from the pacing sheet (read in Step 2). The agent follows the procedure in `~/skills/weekly-reporting/skills/weekly-tables.md`:
 
@@ -294,9 +296,9 @@ Spawn a background agent to populate all 5 template tables with values from the 
 
 This runs on the pristine template before commentary insertion, so table cell indices are predictable.
 
-**Wait for the table agent to complete before proceeding to 5.5d.**
+**Wait for the table agent to complete before proceeding to 5c.**
 
-### 5.5d — Insert commentary sections
+### 5c — Insert commentary sections
 
 Insert the commentary (from the .md file generated in Step 4) into the template tab at the correct positions between headings and tables. Since commentary insertion shifts indices, process sections in **reverse document order** (bottom-to-top).
 
@@ -320,7 +322,7 @@ echo '<SECTION_MARKDOWN>' | (cd ~/skills/gdrive && uv run gdrive-cli.py docs ins
 
 4. The GP section also includes the reference links (Cash App Digest, Square Update) — insert those as part of the GP section commentary.
 
-### 5.5e — Format commentary
+### 5d — Format commentary
 
 After all commentary sections are inserted, apply formatting fixes. Read the Doc structure once via `docs get --include-tabs`, then build all formatting requests and execute as batch updates.
 
@@ -374,15 +376,17 @@ Find all text ranges containing `[MANUAL` or `[DATA MISSING` in the doc. Apply y
 
 ### Error handling
 
-If any step in 5.5 fails, skip to Step 6 and report the error. The .md file is already saved — no work is lost. Do not retry automatically.
+If any step in Step 5 fails, skip to Step 6 and report the error. The .md file is already saved — no work is lost. Do not retry automatically.
 
 ---
 
 ## Step 6 — Validate
 
+*(Note: Validation intentionally re-reads the pacing sheet and Doc independently — this is by design for verification integrity, not a redundant read.)*
+
 After publishing, validate that every number in the Doc's tables matches the master sheet. Follow the full validation procedure in `~/skills/weekly-reporting/skills/weekly-validate.md`, using `~/skills/weekly-reporting/skills/weekly-tables.md` for column mapping.
 
-Use the tab ID from Step 5.5a (skip the tab identification and confirmation steps — you already know the tab).
+Use the tab ID from Step 5a (skip the tab identification and confirmation steps — you already know the tab).
 
 **Sheet** (source of truth):
 ```bash
@@ -442,3 +446,4 @@ Key takeaways:
 - **Keep each bullet to 1–2 lines** — concise, numbers-forward, no filler
 - **Use delta $ amounts** (not %) for the topline takeaways — easier to internalize at a glance
 - **Tone:** direct, factual, no emojis — this is the message Nick will forward to senior leadership
+

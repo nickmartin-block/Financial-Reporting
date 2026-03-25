@@ -24,13 +24,44 @@ cd ~/skills/gdrive && uv run gdrive-cli.py auth status
 
 If auth fails, stop and ask user to re-authenticate.
 
-## Step 2: Read Pacing Sheet
+## Step 2: Read Pacing Sheet + Extract Commentary (parallel)
+
+**Run both of these concurrently** — the pacing sheet read and the Innercore commentary extraction are independent data sources. The commentary only needs the Doc ID (not the pacing data), and produces `/tmp/commentary.json` which is consumed later in Step 9.
+
+### 2a: Read Pacing Sheet
 
 ```bash
 cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4 --sheet summary
 ```
 
 This returns a JSON 2D array. Parse it into rows.
+
+### 2b: Extract Commentary from Innercore Doc
+
+Read the Innercore weekly performance digest:
+```bash
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0 --include-tabs
+```
+
+**Find the most recent weekly tab** (highest date under 1Q26 parent). Navigate: `tabs[0].childTabs[0]` for the latest.
+
+**Extract 3-5 key takeaways** beyond the auto-generated GP and AOI headlines. Focus on:
+- **AOI WoW change and drivers** — what moved AOI this week, with dollar amounts
+- **Outperformance / expectations management** — any notes on beat magnitude and implications
+- **Notable risks or opportunities** — quantified dollar impact items
+- **Actives or other call-outs** — anything pertinent that week (use judgment)
+
+**Format each takeaway** as an HTML string with `<strong>` tags for the topic label:
+```
+"<strong>AOI WoW drivers</strong>: +$23M WoW driven by ..."
+```
+
+**Write to** `/tmp/commentary.json` as a JSON array of strings:
+```bash
+python3 -c "import json; json.dump([...takeaways...], open('/tmp/commentary.json','w'), indent=2)"
+```
+
+The refresh.py script will pick up `/tmp/commentary.json` automatically.
 
 ## Step 3: Section Label Scanning
 
@@ -158,45 +189,20 @@ Generate two sentences:
 - "**Gross profit** is expected to land at {Block GP Q1 Pacing}, {YoY}% YoY, {vs cons dollar} vs. consensus"
 - "**Adjusted operating income** is expected to land at {AOI Q1 Pacing}, {margin}% margin, {vs cons dollar} vs. consensus"
 
-## Step 8: Extract Commentary from Innercore Doc
-
-Read the Innercore weekly performance digest:
-```bash
-cd ~/skills/gdrive && uv run gdrive-cli.py docs get 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0 --include-tabs
-```
-
-**Find the most recent weekly tab** (highest date under 1Q26 parent). Navigate: `tabs[0].childTabs[0]` for the latest.
-
-**Extract 3-5 key takeaways** beyond the auto-generated GP and AOI headlines. Focus on:
-- **AOI WoW change and drivers** — what moved AOI this week, with dollar amounts
-- **Outperformance / expectations management** — any notes on beat magnitude and implications
-- **Notable risks or opportunities** — quantified dollar impact items
-- **Actives or other call-outs** — anything pertinent that week (use judgment)
-
-**Format each takeaway** as an HTML string with `<strong>` tags for the topic label:
-```
-"<strong>AOI WoW drivers</strong>: +$23M WoW driven by ..."
-```
-
-**Write to** `/tmp/commentary.json` as a JSON array of strings:
-```bash
-python3 -c "import json; json.dump([...takeaways...], open('/tmp/commentary.json','w'), indent=2)"
-```
-
-The refresh.py script will pick up `/tmp/commentary.json` automatically.
-
-## Step 9: Write dashboard_data.js
+## Step 8: Write dashboard_data.js
 
 Run the refresh script to generate `dashboard_data.js` (reads pacing sheet, corp/consensus models, and commentary):
 ```bash
 cd ~/Desktop/Nick's\ Cursor/Pacing\ Dashboard && python3 refresh.py
 ```
 
-## Step 10: Sync index.html
+## Step 9: Sync index.html
 
 Copy `dashboard.html` → `index.html` so Block Cell serves the page correctly (Block Cell does not auto-resolve `/` to `/index.html`).
 
-## Step 11: Validate
+## Step 10: Validate
+
+*(Note: Validation intentionally re-reads the pacing sheet independently — this is by design for verification integrity, not a redundant read.)*
 
 Run the validation suite:
 ```bash
@@ -221,13 +227,13 @@ Use `--quick` for local checks only (fast). Use full mode (no flag) if Snowflake
 
 **If validation passes:** Proceed to deploy.
 
-## Step 12: Deploy to Block Cell
+## Step 11: Deploy to Block Cell
 
 Upload the Pacing Dashboard directory to Block Cell:
 - Site name: `nmart-pacing-dashboard`
 - Production URL: https://blockcell.sqprod.co/sites/nmart-pacing-dashboard/index.html
 
-## Step 13: Report & Notify
+## Step 12: Report & Notify
 
 Output a summary:
 - Timestamp
