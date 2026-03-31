@@ -94,6 +94,7 @@ Key metric labels are always **bold** in fact lines. This includes metric names 
 - Always a space between the number and "pts": +5 pts, -2.3 pts
 - Follow the same rounding as percentages: one decimal if < 10 (+2.4 pts), no decimal if ≥ 10 (+12 pts)
 - Margin changes: "+X pts of margin expansion" or "-X pts of margin compression"
+- **When to use pts vs. %:** Use "pts" whenever comparing two rates — growth rates, margins, Rule of 40, or any YoY% vs. a benchmark YoY%. Use "%" only for deltas computed as (Pacing Value - Benchmark Value) / Benchmark Value. Example: "GPV growth +0.9 pts above consensus" (comparing 13.1% YoY vs. 12.2% consensus YoY), NOT "+0.9% above consensus." This prevents confusion between percentage-point differences and absolute-value percentage deltas.
 
 **Margin Presentation**
 - State margin levels inline: "$588M (20% margin)"

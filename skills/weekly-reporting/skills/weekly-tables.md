@@ -33,11 +33,14 @@ Stop if not valid.
 
 ## Step 2 — Read the master pacing sheet
 
+**Integrated mode** (called by the weekly-summary publish agent): Read from the cached temp file at `/tmp/pacing_sheet_YYYY-MM-DD.json` — do NOT re-read the sheet API. The publish agent passes the file path.
+
+**Standalone mode** (called via `/weekly-tables`):
 ```bash
 cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4 --sheet summary
 ```
 
-Parse the returned JSON into a 2D array of cell values.
+Parse the JSON into a 2D array of cell values.
 
 ---
 

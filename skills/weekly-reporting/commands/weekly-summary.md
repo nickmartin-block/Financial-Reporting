@@ -34,8 +34,10 @@ Stop if auth cannot be resolved.
 ### 2a — Read the master pacing sheet
 
 ```bash
-cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4 --sheet summary
+cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4 --sheet summary > /tmp/pacing_sheet_$(date +%Y-%m-%d).json
 ```
+
+**Save the raw JSON to `/tmp/pacing_sheet_YYYY-MM-DD.json`.** This file is the single source of truth for the entire pipeline — table population (Step 5b), commentary generation (Step 3), and validation (Step 6) all reference this cached file instead of re-reading the sheet. This prevents mid-run data drift and eliminates redundant API calls.
 
 Extract every in-scope metric from the sheet. The metrics to pull:
 
@@ -69,6 +71,8 @@ For **each** metric, extract both monthly and quarterly values:
 - **Rule of 40**: Q1 Guidance, Q1 Consensus
 
 Compute deltas vs guidance/consensus as: (Q1 Pacing - Benchmark) / Benchmark, or in pts for Rule of 40.
+
+**Growth rate vs. value comparisons — "pts" not "%":** When comparing two growth rates (e.g., pacing YoY% vs. consensus YoY%, or GPV growth vs. GP growth), always express the difference in **pts** (percentage points), not %. For example: "growth +0.9 pts above consensus" or "4.2 pts below GPV growth." This avoids confusion with absolute-value deltas. Use "%" only when comparing a pacing dollar value to a benchmark dollar value (e.g., "+3.3% (+$94M) above AP"). This rule applies everywhere — Summary, Overview, and GPV-to-GP spread.
 
 **WoW breakdown**: For Block GP, also note the Q1 WoW split between Cash App and Square (from their respective Q1 WoW values).
 
@@ -105,10 +109,10 @@ If a metric is missing from the sheet, note it as `[DATA MISSING: {metric}]`.
 
 ### 2b — Search Slack for brand digests
 
-Pull the latest messages from the weekly reporting group DM:
+Pull the latest messages from the #fpa-ir-planning-reporting channel:
 
 ```bash
-/Users/nmart/skills/slack/scripts/slack-cli get-channel-messages --channel-id C07LV8RS05A --limit 20 --full-text
+/Users/nmart/skills/slack/scripts/slack-cli get-channel-messages --channel-id C091W2BA04U --limit 20 --full-text
 ```
 
 ### Cash App Weekly Digest
@@ -157,6 +161,8 @@ Each Overview section includes bulleted fact lines with proper nesting (see temp
 ## Summary
 
 [emoji] **Topline: Block gross profit** is pacing to [Q1 Value — $B] in Q1 ([Q1 YoY]% YoY), [Q1 AP delta]% ([Q1 AP delta $]) [above/below] AP and [Q1 Guidance delta]% ([Q1 Guidance delta $]) [above/below] guidance. Block gross profit is pacing [Month AP delta]% ([Month AP delta $]) [above/below] AP in [Month], but [Q1 WoW $] [below/above] the previous week (Cash [Cash WoW $], Square [SQ WoW $]) due to [synthesized WoW drivers from Slack digest — no attribution] [MANUAL: and Square-specific WoW driver context]. Cash App gross profit is pacing to [Cash Month Value] in [Month] ([Cash Month YoY]% YoY), [Cash Month AP delta]% ([Cash Month AP delta $]) [above/below] AP. Square gross profit is pacing to [SQ Month Value] in [Month] ([SQ Month YoY]% YoY), [SQ Month AP delta]% ([SQ Month AP delta $]) [above/below] AP.
+
+*(blank line — ensure a non-bulleted blank paragraph separates Topline from the first bullet)*
 
 - [emoji] **Square gross profit** is expected to land [SQ Month AP delta]% ([SQ Month AP delta $]) [below/above] AP in [Month] and [SQ Q1 AP delta]% ([SQ Q1 AP delta $]) [below/above] in Q1. Square gross profit growth is expected to land at [SQ GP Q1 YoY]% YoY in Q1 ([pacing spread] pts below GPV growth).
 - [emoji] **Square GPV** In [Month], global GPV is pacing to [Value] ([Global GPV Month YoY]% YoY), [Month AP delta]% [above/below] AP. For the quarter, global GPV is pacing to [Q1 Value] ([Q1 YoY]% YoY), [Q1 AP delta]% [above/below] AP, with growth [+/-X] pts [above/below] consensus. US and International GPV are pacing [above/below/mixed] against AP in [Month]:
@@ -238,6 +244,7 @@ For additional details on performance for each brand, please reference the mater
 - Quarter notation: Q1'26, Q2'26, etc.
 - Always include sign (+/-) on YoY and delta values
 - "above"/"below" based on sign of delta vs forecast
+- **Percentage points (pts):** Use "pts" when expressing the difference between two rates (growth rates, margins, Rule of 40). Use "%" only for deltas computed as (Value - Benchmark) / Benchmark. Example: "growth +0.9 pts above consensus" (two growth rates), NOT "+0.9% above consensus"
 - Date in title: abbreviated month + day + year (e.g., "Mar 17, 2026")
 - For [MANUAL] placeholders: preserve the placeholder text exactly, including the bracket notation, so Nick can find and fill them
 
@@ -283,27 +290,41 @@ From the response:
 
 Capture the tab ID.
 
-### 5b — Populate tables (parallel agent)
+### 5b — Publish (tables + commentary + formatting)
 
-Spawn a background agent to populate all 5 template tables with values from the pacing sheet (read in Step 2). The agent follows the procedure in `~/skills/weekly-reporting/skills/weekly-tables.md`:
+**Spawn a single agent** to handle all Doc publishing in one consolidated pass. This agent performs table population, commentary insertion, and formatting sequentially — avoiding redundant Doc reads.
 
-1. Read the Doc template structure via `docs get --include-tabs`
-2. Find all 5 tables, extract empty cell positions (`startIndex` for each data cell)
-3. Map Sheet values to Doc cells using the column/row mapping in weekly-tables.md
-4. Build batch-update JSON: for each cell (sorted by startIndex descending), create `insertText` + `updateTextStyle` (Roboto 10pt) + `updateParagraphStyle` (CENTER) requests
-5. Execute the batch-update
-6. Apply conditional colors on Delta vs. AP rows (green #007A33 for positive, red #CC0000 for negative)
+The agent receives:
+- **Sheet data path:** `/tmp/pacing_sheet_YYYY-MM-DD.json` (cached from Step 2a — do NOT re-read the sheet)
+- **Doc ID:** `1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0`
+- **Tab ID:** from Step 5a
+- **Commentary .md path:** from Step 4
+- **Table mapping:** `~/skills/weekly-reporting/skills/weekly-tables.md`
 
-This runs on the pristine template before commentary insertion, so table cell indices are predictable.
+The agent executes these phases in order:
 
-**Wait for the table agent to complete before proceeding to 5c.**
+---
 
-### 5c — Insert commentary sections
+**Phase 1 — Populate tables**
 
-Insert the commentary (from the .md file generated in Step 4) into the template tab at the correct positions between headings and tables. Since commentary insertion shifts indices, process sections in **reverse document order** (bottom-to-top).
+Follow the procedure in `~/skills/weekly-reporting/skills/weekly-tables.md` (integrated mode):
 
-1. Read the Doc structure via `docs get --include-tabs` to find all heading positions and table positions in the target tab
-2. Build an insertion map — for each section, identify the heading's `endIndex` (where commentary goes):
+1. Read sheet data from the cached temp file (no API call)
+2. Read the Doc template structure via `docs get --include-tabs`
+3. Navigate to the target tab. Find all 5 tables, extract cell positions (`startIndex` for each data cell)
+4. Map Sheet values to Doc cells using the column/row mapping in weekly-tables.md
+5. Build batch-update JSON: for each cell (sorted by startIndex descending), create `insertText` + `updateTextStyle` (Roboto 10pt) + `updateParagraphStyle` (CENTER) requests
+6. Execute the batch-update
+7. Re-read Doc structure, then apply conditional colors on Delta vs. AP rows (green `#007A33` for positive, red `#CC0000` for negative)
+
+---
+
+**Phase 2 — Insert commentary**
+
+Insert the commentary (from the .md file) into the template tab at the correct positions between headings and tables. Since commentary insertion shifts indices, process sections in **reverse document order** (bottom-to-top).
+
+1. Re-read the Doc structure via `docs get --include-tabs` (indices shifted from Phase 1)
+2. Build an insertion map — for each section, identify the heading's `endIndex`:
 
 | Section | Heading Text to Match | Insert After |
 |---|---|---|
@@ -314,65 +335,63 @@ Insert the commentary (from the .md file generated in Step 4) into the template 
 | GP | `Overview: Gross Profit Performance` | Heading endIndex |
 | Summary | `Summary` (H2) | Heading endIndex |
 
-3. For each section (bottom-to-top), extract the corresponding markdown fragment from the .md file (just the bullet lines for that section, NOT the heading itself — headings are already in the template):
+3. For each section (bottom-to-top), extract the corresponding markdown fragment from the .md file (just the bullet lines, NOT the heading — headings are already in the template):
 
 ```bash
-echo '<SECTION_MARKDOWN>' | (cd ~/skills/gdrive && uv run gdrive-cli.py docs insert-markdown 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0 --tab TAB_ID --at-index INSERTION_INDEX --font Inter)
+echo '<SECTION_MARKDOWN>' | (cd ~/skills/gdrive && uv run gdrive-cli.py docs insert-markdown DOC_ID --tab TAB_ID --at-index INSERTION_INDEX --font Inter)
 ```
 
 4. The GP section also includes the reference links (Cash App Digest, Square Update) — insert those as part of the GP section commentary.
 
-### 5d — Format commentary
+---
 
-After all commentary sections are inserted, apply formatting fixes. Read the Doc structure once via `docs get --include-tabs`, then build all formatting requests and execute as batch updates.
+**Phase 3 — Format**
 
-**1. Set body font size to 10pt:**
+After all commentary is inserted, apply formatting. Re-read the Doc structure once via `docs get --include-tabs`, then build all formatting requests and execute as batch updates.
 
-For every `NORMAL_TEXT` paragraph in the tab (skip `HEADING_1`, `HEADING_2`, `HEADING_3`, and paragraphs inside table cells — those are already Roboto 10pt from the table agent):
+**3a. Font size 10pt + line spacing 1.15:**
 
+For every `NORMAL_TEXT` paragraph outside tables:
 ```json
 {"updateTextStyle": {"textStyle": {"fontSize": {"magnitude": 10, "unit": "PT"}}, "fields": "fontSize", "range": {"startIndex": START, "endIndex": END, "tabId": "TAB_ID"}}}
 ```
+```json
+{"updateParagraphStyle": {"paragraphStyle": {"lineSpacing": 115, "spaceAbove": {"magnitude": 0, "unit": "PT"}, "spaceBelow": {"magnitude": 0, "unit": "PT"}}, "fields": "lineSpacing,spaceAbove,spaceBelow", "range": {"startIndex": START, "endIndex": END, "tabId": "TAB_ID"}}}
+```
 
-**2. Fix bullet nesting:**
+**3b. Fix bullet nesting:**
 
-The markdown converter renders all bullets flat (level 0). Fix nesting.
+**CRITICAL: Only modify paragraphs OUTSIDE of tables.** Track whether you are inside a `table` element. Skip ALL table cell paragraphs. When computing ranges for `createParagraphBullets`, ensure the range ends BEFORE the next table's startIndex.
 
-**CRITICAL: Only modify paragraphs OUTSIDE of tables. Never apply bullet operations to paragraphs inside table cells.** When iterating `body.content`, skip any elements that are inside a `table` element. Table cells should not be touched by any bullet or bold operations.
-
-1. Identify each bullet section by scanning paragraph text for known labels (only non-table paragraphs)
+1. Identify each bullet section by scanning paragraph text for known labels
 2. `deleteParagraphBullets` on each section range
-3. `insertText` `\t` (level 1) or `\t\t` (level 2) at the start of sub-item paragraphs (process in **reverse index order**):
+3. `insertText` `\t` (level 1) or `\t\t` (level 2) at sub-item starts (process in **reverse index order**):
 
 **Summary sub-items:**
 - Level 1 (`\t`): US GPV, International GPV, Lending vs. Non-Lending, Inflows Framework, Inflows (vs. AP), Monetization rate (vs. AP)
 - Level 2 (`\t\t`): Lending (vs. AP), Non-Lending (vs. AP), Actives, Inflows per active, Monetization rate
 
 **Overview GP sub-items (level 1):** Cash App GP, Square GP, Proto GP, TIDAL GP
-
-**Overview AOI sub-items (level 1):** monthly Rule of 40, quarterly Rule of 40
-
+**Overview AOI sub-items (level 1):** "We expect to achieve" and "For the quarter, the business"
 **Overview Square GPV sub-items (level 1):** US GPV, International GPV, GPV to GP Spread
 
-4. `createParagraphBullets` with `BULLET_DISC_CIRCLE_SQUARE` preset on each section range
-5. Include `tabId` in every range/location object
+4. `createParagraphBullets` with `BULLET_DISC_CIRCLE_SQUARE` preset. **Range MUST end before the next table startIndex.**
 
-**3. Bold metric labels in overview commentary:**
+**3c. Bold metric labels in overview commentary:**
 
-Apply `bold: true` via `updateTextStyle` to each metric label in the Overview bullet lines. Bold only the metric name — not "is pacing to..." or other surrounding text.
+Apply `bold: true` to metric names only (not "is pacing to..." text). Labels: Block gross profit, Cash App gross profit, Square gross profit, Proto gross profit, TIDAL gross profit, Adjusted Operating Income, Rule of 40/46/49/50, Actives, Inflows per active, Monetization rate, Inflows, Global GPV, US GPV, International GPV, GPV to GP Spread. **Only non-table paragraphs.**
 
-Labels to bold: Block gross profit, Cash App gross profit, Square gross profit, Proto gross profit, TIDAL gross profit, Adjusted Operating Income, Rule of 40/46/49, Actives, Inflows per active, Monetization rate, Inflows, Global GPV, US GPV, International GPV, GPV to GP Spread.
+**3d. Yellow highlight on placeholders:**
 
-Also bold **Global GPV** in the quarterly GPV line.
+Find text containing `[MANUAL`, `[DATA MISSING`, or `[Cash App WoW` and apply yellow background (`rgbColor: {red: 1.0, green: 0.95, blue: 0.0}`).
 
-**CRITICAL: Only bold text in non-table paragraphs. Never apply bold to table header cells or any text inside table elements.**
+**3e. Enforce Summary spacing:**
 
-**4. Yellow highlight on placeholders:**
+Verify non-bulleted blank paragraphs exist between: (1) Topline and first bullet, (2) last bullet (Proto) and Profitability. Insert if missing. Remove bullet formatting from these spacer paragraphs.
 
-Find all text ranges containing `[MANUAL` or `[DATA MISSING` in the doc. Apply yellow background:
-```json
-{"updateTextStyle": {"textStyle": {"backgroundColor": {"color": {"rgbColor": {"red": 1.0, "green": 0.95, "blue": 0.0}}}}, "fields": "backgroundColor", "range": {"startIndex": START, "endIndex": END, "tabId": "TAB_ID"}}}
-```
+**3f. Post-bullet table safety check:**
+
+Re-read Doc. Scan ALL table cell paragraphs for `bullet` property. Remove any stray bullets with `deleteParagraphBullets`.
 
 ### Error handling
 
@@ -382,15 +401,13 @@ If any step in Step 5 fails, skip to Step 6 and report the error. The .md file i
 
 ## Step 6 — Validate
 
-*(Note: Validation intentionally re-reads the pacing sheet and Doc independently — this is by design for verification integrity, not a redundant read.)*
-
-After publishing, validate that every number in the Doc's tables matches the master sheet. Follow the full validation procedure in `~/skills/weekly-reporting/skills/weekly-validate.md`, using `~/skills/weekly-reporting/skills/weekly-tables.md` for column mapping.
+After publishing, validate that every number in the Doc's tables matches the sheet data. Follow the full validation procedure in `~/skills/weekly-reporting/skills/weekly-validate.md`, using `~/skills/weekly-reporting/skills/weekly-tables.md` for column mapping.
 
 Use the tab ID from Step 5a (skip the tab identification and confirmation steps — you already know the tab).
 
-**Sheet** (source of truth):
+**Sheet** (source of truth) — use the cached file from Step 2a (no re-read):
 ```bash
-cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4 --sheet summary
+cat /tmp/pacing_sheet_YYYY-MM-DD.json
 ```
 
 **Doc tables** (what we're validating):
@@ -398,7 +415,7 @@ cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNH
 cd ~/skills/gdrive && uv run gdrive-cli.py docs extract-tables 1FU4In29vR_1pvGy1VyIeDTCbglBQ6DvKWKE1wI18Rv0 --tab TAB_ID
 ```
 
-Compare every data cell following the normalization rules and rounding tolerances in the validate skill. Save the validation report to:
+Since the tables were populated from the same cached sheet snapshot, validation is a structural integrity check — confirming the API inserted values correctly. Compare every data cell following the normalization rules and rounding tolerances in the validate skill. Save the validation report to:
 ```
 ~/Desktop/Nick's Cursor/Weekly Reporting/validation_YYYY-MM-DD.md
 ```

@@ -41,8 +41,10 @@ Stop if auth cannot be resolved.
 ## Step 2 — Read the master pacing sheet
 
 ```bash
-cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4 --sheet summary
+cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4 --sheet summary > /tmp/pacing_sheet_$(date +%Y-%m-%d).json
 ```
+
+**Cache the raw JSON to `/tmp/pacing_sheet_YYYY-MM-DD.json`.** All downstream steps (table population, validation) read from this file instead of re-reading the API. This prevents mid-run data drift and eliminates redundant API calls.
 
 Extract every in-scope metric from the sheet. The metrics to pull:
 
@@ -73,15 +75,15 @@ If a metric is missing from the sheet, note it as `[DATA MISSING: {metric}]`.
 
 ## Step 3 — Search Slack for Cash App Weekly Digest
 
-Search for mjansing's latest Cash digest. Try the group DM first:
+Search for mjansing's latest Cash digest. Check the #fpa-ir-planning-reporting channel:
 
 ```bash
-/Users/nmart/skills/slack/scripts/slack-cli get-channel-messages --channel-id C07LV8RS05A --limit 20 --full-text
+/Users/nmart/skills/slack/scripts/slack-cli get-channel-messages --channel-id C091W2BA04U --limit 20 --full-text
 ```
 
 Scan for the most recent message from mjansing (user ID `U01K3T9BQ21`) that contains "Cash App Weekly Digest" or a Google Slides/Presentation link.
 
-**If not found in that channel**, ask Nick: "I couldn't find Matt's latest Cash digest in the usual group DM. Where should I look?"
+**If not found in that channel**, ask Nick: "I couldn't find Matt's latest Cash digest in #fpa-ir-planning-reporting. Where should I look?"
 
 **If Matt hasn't posted yet**, proceed to Step 4 without the digest. Flag it in the output as pending.
 
@@ -134,7 +136,7 @@ Key takeaways:
 ```
 ### Cash App Commentary
 > mjansing's Cash App Weekly Digest has not been posted yet for this week.
-> Check group DM (C07LV8RS05A) or ask mjansing directly.
+> Check #fpa-ir-planning-reporting (C091W2BA04U) or ask mjansing directly.
 ```
 
 ### Formatting rules

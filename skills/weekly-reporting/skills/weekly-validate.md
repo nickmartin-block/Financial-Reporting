@@ -44,6 +44,9 @@ Wait for confirmation before proceeding.
 
 **Sheet** (source of truth):
 
+**Integrated mode** (called by weekly-summary after publishing): Read from the cached temp file at `/tmp/pacing_sheet_YYYY-MM-DD.json` — the same snapshot used to populate the tables. Do NOT re-read the sheet API.
+
+**Standalone mode** (called via `/weekly-validate`):
 ```bash
 cd ~/skills/gdrive && uv run gdrive-cli.py sheets read 1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4 --sheet summary
 ```
