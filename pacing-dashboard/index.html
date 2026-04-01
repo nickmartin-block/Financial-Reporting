@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Block Performance Dashboard</title>
+  <title>Pacing Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -172,6 +172,8 @@
       background: #1a1a1a;
     }
 
+    .takeaways li.subheader { padding-left: 0; }
+    .takeaways li.subheader::before { display: none; }
     .takeaways strong { font-weight: 600; }
 
     /* ─── Section Headers ─── */
@@ -758,13 +760,12 @@
   <!-- ═══ Header ═══ -->
   <header class="header">
     <div class="header-left">
-      <h1>Block Performance Dashboard</h1>
+      <h1>Pacing Dashboard</h1>
       <span class="quarter-badge" id="quarter-badge">Q1 2026</span>
       <span class="placeholder-badge" id="placeholder-badge">Placeholder Data</span>
       <span class="validation-badge unknown" id="validation-badge">--</span>
     </div>
     <div class="header-right">
-      <span class="actuals-source" id="actuals-source"></span>
       <span class="last-updated" id="last-updated">Last updated: --</span>
     </div>
   </header>
@@ -775,7 +776,6 @@
     <div class="tab" data-page="page1">Quarterly Pacing</div>
     <div class="tab" data-page="page-updates">Additional Updates</div>
     <div class="tab" data-page="page-consensus">Constants</div>
-    <div class="tab" data-page="page2">FY2026 Outlook</div>
   </nav>
 
   <!-- ═══════════════════════════════════════════════════ -->
@@ -784,7 +784,7 @@
   <div class="page active" id="page-overview">
 
     <div class="overview-hero">
-      <h2>Block Performance Dashboard</h2>
+      <h2>Pacing Dashboard</h2>
       <p>This dashboard is Amrita's primary reference for business performance — a single source of truth covering where we are pacing, what's changed, and what needs attention. Updated each Tuesday by Corporate FP&amp;A, it consolidates quarterly projections and year-over-year trends into one view for innercore.</p>
     </div>
 
@@ -838,7 +838,7 @@
 
     <!-- Key Takeaways -->
     <div class="takeaways" id="takeaways-p1">
-      <h3>Key Takeaways <span style="font-weight:400; font-style:italic; font-size:10px; letter-spacing:0.3px; color:#999">Authored by Corporate FP&amp;A</span></h3>
+      <h3>Q1'26 Key Takeaways <span style="font-weight:400; font-style:italic; font-size:10px; letter-spacing:0.3px; color:#999">Authored by Corporate FP&amp;A</span></h3>
       <ul>
         <li><strong>Gross profit</strong> is expected to land at <strong>$2.90B</strong>, +27% YoY, <strong>+$100M vs. consensus</strong></li>
         <li><strong>Adjusted operating income</strong> is expected to land at <strong>$638M</strong>, 22% margin, <strong>+$27M vs. consensus</strong></li>
@@ -990,32 +990,19 @@
       var vb = document.getElementById('validation-badge');
       if (D.meta.validation) {
         var v = D.meta.validation;
-        var cls = v.status === 'PASS' ? 'pass' : (v.fails > 0 ? 'fail' : 'warn');
+        var cls = v.fails > 0 ? 'fail' : 'pass';
         vb.className = 'validation-badge ' + cls;
-        vb.textContent = v.status + ' (' + v.total + '/' + v.total + ')';
-        if (v.fails > 0) vb.textContent = 'FAIL (' + v.fails + ' issue' + (v.fails > 1 ? 's' : '') + ')';
-        if (v.warns > 0 && v.fails === 0) vb.textContent = 'PASS (' + v.warns + ' warn)';
+        vb.textContent = v.fails > 0 ? 'FAIL' : 'PASS';
       } else {
         // Try loading from validation_report.json
         fetch('validation_report.json').then(function(r) { return r.json(); }).then(function(v) {
-          var cls = v.status === 'PASS' ? 'pass' : (v.fails > 0 ? 'fail' : 'warn');
+          var cls = v.fails > 0 ? 'fail' : 'pass';
           vb.className = 'validation-badge ' + cls;
-          var total = v.total || (v.passes + v.fails + v.warns + v.skips);
-          vb.textContent = v.status + ' (' + total + '/' + total + ')';
-          if (v.fails > 0) vb.textContent = 'FAIL (' + v.fails + ' issue' + (v.fails > 1 ? 's' : '') + ')';
-          if (v.warns > 0 && v.fails === 0) vb.textContent = 'PASS (' + v.warns + ' warn)';
+          vb.textContent = v.fails > 0 ? 'FAIL' : 'PASS';
         }).catch(function() { vb.style.display = 'none'; });
       }
     })();
 
-    // Actuals source indicator
-    (function() {
-      var as = document.getElementById('actuals-source');
-      var src = D.meta.actuals_source || 'unknown';
-      var verified = src === 'mcp';
-      as.innerHTML = '<span class="dot ' + (verified ? 'verified' : 'unverified') + '"></span>' +
-        'Actuals: ' + (verified ? 'MCP verified' : 'fallback');
-    })();
 
     // ─── SSO Identity (from CDP cookies) ───
     function getSSOUser() {
@@ -1128,7 +1115,7 @@
         if (col === 'Q1 AP') return row.ap;
         if (col === 'Q1 Guidance') return row.guidance || '--';
         if (col === 'vs. Guide') return row.vs_guide || '--';
-        if (col === 'Q1 Constants') return row.consensus || '--';
+        if (col === 'Q1 Consensus') return row.consensus || '--';
         if (col === 'Cons YoY') return row.cons_yoy || '--';
         if (col === 'vs. Cons') return row.vs_cons || row.vs_comp || '--';
         return '--';
@@ -1138,7 +1125,7 @@
     // ─── Render Forward-Look Tables ───
     function renderForwardTable(tableId, metric, quarters) {
       const table = document.getElementById(tableId);
-      const cols = ['Quarter', 'Internal Forecast', 'YoY Growth', 'Constants', 'Cons YoY', '$ Delta', 'Growth Delta'];
+      const cols = ['Quarter', 'Internal Forecast', 'YoY Growth', 'Consensus', 'Cons YoY', '$ Delta', 'Growth Delta'];
 
       let html = '<thead><tr>';
       cols.forEach(col => { html += `<th>${col}</th>`; });
@@ -1165,7 +1152,7 @@
     // ─── Render AOI Forward Table (margin-based) ───
     function renderAoiForwardTable(tableId, quarters) {
       const table = document.getElementById(tableId);
-      const cols = ['Quarter', 'Internal Forecast', 'Margin', 'Constants', 'Cons Margin', '$ Delta', 'Margin Delta'];
+      const cols = ['Quarter', 'Internal Forecast', 'Margin', 'Consensus', 'Cons Margin', '$ Delta', 'Margin Delta'];
 
       let html = '<thead><tr>';
       cols.forEach(col => { html += `<th>${col}</th>`; });
@@ -1372,10 +1359,18 @@
     // Page 1 — Key Takeaways
     const t = D.takeaways;
     let takeawaysHtml = `
-      <li><strong>Gross profit</strong> is expected to land at <strong>${t.gp.value}</strong>, ${t.gp.yoy} YoY, <strong>${t.gp.vs_cons_dollar} vs. consensus</strong></li>
-      <li><strong>Adjusted operating income</strong> is expected to land at <strong>${t.aoi.value}</strong>, ${t.aoi.margin} margin, <strong>${t.aoi.vs_cons_dollar} vs. consensus</strong></li>`;
-    if (t.additional && t.additional.length) {
-      t.additional.forEach(item => { takeawaysHtml += `<li>${item}</li>`; });
+      <li><strong>Gross profit</strong> is expected to land at <strong>${t.gp.value}</strong>, <strong>${t.gp.yoy} YoY</strong>, <strong>${t.gp.vs_cons_dollar} vs. consensus</strong></li>
+      <li><strong>Adjusted operating income</strong> is expected to land at <strong>${t.aoi.value}</strong>, <strong>${t.aoi.margin} margin</strong>, <strong>${t.aoi.vs_cons_dollar} vs. consensus</strong></li>`;
+    if (t.ro40) {
+      takeawaysHtml += `<li><strong>Rule of 40</strong> at <strong>${t.ro40.value}</strong>, ${t.ro40.vs_ap} vs. AP, ${t.ro40.vs_guide} vs. guidance</li>`;
+    }
+    if (t.wow_changes && t.wow_changes.length) {
+      takeawaysHtml += `<li class="subheader" style="margin-top:12px; font-weight:600; font-size:11px; letter-spacing:0.5px; text-transform:uppercase; color:#999;">Week-over-Week</li>`;
+      t.wow_changes.forEach(item => { takeawaysHtml += `<li>${item}</li>`; });
+    }
+    if (t.watch_points && t.watch_points.length) {
+      takeawaysHtml += `<li class="subheader" style="margin-top:12px; font-weight:600; font-size:11px; letter-spacing:0.5px; text-transform:uppercase; color:#999;">Watch Points</li>`;
+      t.watch_points.forEach(item => { takeawaysHtml += `<li>${item}</li>`; });
     }
     document.querySelector('#takeaways-p1 ul').innerHTML = takeawaysHtml;
 

@@ -32,6 +32,11 @@ cd "$GDRIVE" && uv run gdrive-cli.py auth status > /dev/null 2>&1 || {
 }
 echo "  ✓ Authenticated"
 
+# Fetch MCP actuals from Snowflake (cross-check for validation)
+echo ""
+echo "Fetching MCP actuals..."
+python3 "$DASHBOARD_DIR/fetch_mcp_actuals.py" || echo "  ○ MCP fetch unavailable — validation will use Block Data MCP fallback"
+
 # Read sheets (write to both timestamped dir and legacy /tmp/ paths for compatibility)
 echo ""
 echo "Reading pacing sheet..."

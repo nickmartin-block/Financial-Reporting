@@ -654,6 +654,88 @@ def main():
         json.dumps(pacing_fingerprint, sort_keys=True).encode()
     ).hexdigest()
 
+    # ─── SYNTHESIZE TAKEAWAYS (3 tiers) ───
+    # Tier 1: Headline metrics (always auto-generated from data)
+    # Tier 2: Week-over-week changes (auto-generated + Innercore drivers)
+    # Tier 3: Watch points (auto-generated + Innercore context)
+
+    def build_wow_changes():
+        """WoW breakdown for GP and AOI."""
+        items = []
+        # Block GP WoW with brand breakdown
+        bgp_wow_v = pn(sg(bgp, 28))
+        cagp_wow_v = pn(sg(cagp, 28))
+        sqgp_wow_v = pn(sg(sqgp, 28))
+        if bgp_wow_v is not None:
+            parts = []
+            if cagp_wow_v is not None:
+                parts.append(f"Cash App {fwd(sg(cagp, 28))}")
+            if sqgp_wow_v is not None:
+                parts.append(f"Square {fwd(sg(sqgp, 28))}")
+            # Other = Block - Cash - Square
+            if cagp_wow_v is not None and sqgp_wow_v is not None:
+                other_wow = bgp_wow_v - cagp_wow_v - sqgp_wow_v
+                if abs(other_wow) >= 0.5:
+                    parts.append(f"Proto {fdD(other_wow)}")
+            breakdown = f" ({', '.join(parts)})" if parts else ""
+            items.append(
+                f"Block gross profit <strong>{fwd(sg(bgp, 28))}</strong> WoW{breakdown}"
+            )
+
+        # AOI WoW with drivers from Innercore
+        aoi_wow_v = pn(sg(aoi_r, 28))
+        if aoi_wow_v is not None:
+            # Load driver context from commentary if available
+            aoi_drivers = ""
+            if os.path.exists(COMMENTARY_JSON):
+                try:
+                    commentary = json.load(open(COMMENTARY_JSON))
+                    aoi_drivers = commentary.get("aoi_wow_drivers", "")
+                except (json.JSONDecodeError, IOError):
+                    pass
+            driver_str = f" — {aoi_drivers}" if aoi_drivers else ""
+            items.append(
+                f"Adjusted operating income <strong>{fwd(sg(aoi_r, 28))}</strong> WoW{driver_str}"
+            )
+        return items
+
+    def build_watch_points():
+        """Earnings watch points — GP NRL growth gap, GPV-to-GP spread."""
+        items = []
+        # GP Net of Risk Loss: YoY growth vs consensus
+        gnrl_yoy_v = pn(sg(gnrl_y, 17))
+        gnrl_cons_yoy_v = pn(sg(gnrl_y, 21))
+        if gnrl_yoy_v is not None and gnrl_cons_yoy_v is not None:
+            gap = gnrl_yoy_v - gnrl_cons_yoy_v
+            items.append(
+                f"GP net of risk loss growth pacing <strong>{fp(sg(gnrl_y, 17))} YoY</strong>"
+                f" ({gap:+.1f} pts vs. consensus {fp(sg(gnrl_y, 21))})"
+            )
+
+        # Square GPV-to-GP spread
+        gpv_yoy_v = pn(sg(gg_y, 17))
+        sqgp_yoy_v = pn(sg(sqgp_y, 17))
+        if gpv_yoy_v is not None and sqgp_yoy_v is not None:
+            spread = gpv_yoy_v - sqgp_yoy_v
+            items.append(
+                f"Square GPV-to-GP spread at <strong>{spread:.1f} pts</strong>"
+                f" (GPV {fpg(sg(gg_y, 17))} vs. GP {fp(sg(sqgp_y, 17))})"
+            )
+
+        # Load additional watch points from commentary if available
+        if os.path.exists(COMMENTARY_JSON):
+            try:
+                commentary = json.load(open(COMMENTARY_JSON))
+                extra = commentary.get("watch_points", [])
+                items.extend(extra)
+            except (json.JSONDecodeError, IOError):
+                pass
+
+        return items
+
+    wow_changes = build_wow_changes()
+    watch_points = build_watch_points()
+
     # ─── BUILD FULL OUTPUT ───
     out = {
         "meta": {
@@ -689,7 +771,13 @@ def main():
         "takeaways": {
             "gp": {"value": fB(bgp_q1), "yoy": fp(sg(bgp_y, 17)), "vs_cons_dollar": fdD(bgp_vs)},
             "aoi": {"value": fM(aoi_q1), "margin": fm(sg(mar, 17)), "vs_cons_dollar": fdD(aoi_vs)},
-            "additional": json.load(open(COMMENTARY_JSON)) if os.path.exists(COMMENTARY_JSON) else []
+            "ro40": {"value": f"{ro40_v:.0f}%" if ro40_v else "--",
+                     "vs_ap": f"+{ro40_v - ro40_a:.0f} pts" if ro40_v and ro40_a and ro40_v >= ro40_a
+                              else (f"({abs(ro40_v - ro40_a):.0f} pts)" if ro40_v and ro40_a else "--"),
+                     "vs_guide": f"+{ro40_v - ro40_guide:.0f} pts" if ro40_v and ro40_guide and ro40_v >= ro40_guide
+                              else (f"({abs(ro40_v - ro40_guide):.0f} pts)" if ro40_v and ro40_guide else "--")},
+            "wow_changes": wow_changes,
+            "watch_points": watch_points,
         },
         "block_scorecard": [
             {"label": "Block Gross Profit", "q1_pacing": fB(bgp_q1),
@@ -718,13 +806,17 @@ def main():
                  "guidance": fB(bgp_guide), "vs_guide": fdD(bgp_vs_guide),
                  "consensus": fB(bgp_c),
                  "cons_yoy": fp(sg(bgp_y, 21)), "vs_cons": fdD(bgp_vs),
-                 "signal": sig(pd(bgp_q1, bgp_c))},
+                 "signal": sig(pd(bgp_q1, bgp_c)),
+                 "pacing_raw": bgp_q1, "consensus_raw": bgp_c, "vs_cons_raw": bgp_vs,
+                 "guidance_raw": bgp_guide, "vs_guide_raw": bgp_vs_guide, "ap_raw": pn(sg(bgp, 18))},
                 {"metric": "Adjusted Operating Income", "pacing": fM(aoi_q1),
                  "wow": fwd(sg(aoi_r, 28)), "yoy": fp(sg(aoi_yoy_r, 17)),
                  "ap": fM(pn(sg(aoi_r, 18))), "guidance": fM(aoi_guide),
                  "vs_guide": fdD(aoi_vs_guide),
                  "consensus": fM(aoi_c), "cons_yoy": fp(sg(aoi_yoy_r, 21)),
-                 "vs_cons": fdD(aoi_vs), "signal": sig(pd(aoi_q1, aoi_c))},
+                 "vs_cons": fdD(aoi_vs), "signal": sig(pd(aoi_q1, aoi_c)),
+                 "pacing_raw": aoi_q1, "consensus_raw": aoi_c, "vs_cons_raw": aoi_vs,
+                 "guidance_raw": aoi_guide, "vs_guide_raw": aoi_vs_guide, "ap_raw": pn(sg(aoi_r, 18))},
                 {"metric": "AOI Margin", "pacing": fm(sg(mar, 17)),
                  "wow": (f"+{margin_wow:.0f} pts" if margin_wow is not None and margin_wow >= 0.5
                          else (f"({abs(margin_wow):.0f} pts)" if margin_wow is not None and margin_wow <= -0.5
@@ -760,7 +852,9 @@ def main():
                  "yoy": fp(sg(gnrl_y, 17)), "ap": fB(gnrl_ap), "guidance": "--",
                  "vs_guide": "--",
                  "consensus": fB(gnrl_c), "cons_yoy": fp(sg(gnrl_y, 21)),
-                 "vs_cons": fdD(gnrl_vs), "signal": sig(pd(gnrl_q1, gnrl_c))}
+                 "vs_cons": fdD(gnrl_vs), "signal": sig(pd(gnrl_q1, gnrl_c)),
+                 "pacing_raw": gnrl_q1, "consensus_raw": gnrl_c, "vs_cons_raw": gnrl_vs,
+                 "ap_raw": gnrl_ap}
             ]
         },
         "brand_scorecard": [
@@ -779,7 +873,8 @@ def main():
                 {"metric": "Cash App Gross Profit", "pacing": fB(cagp_q1),
                  "wow": wow_dollar(cagp), "yoy": fp(sg(cagp_y, 17)),
                  "consensus": fB(cagp_c), "vs_comp": fdD(cagp_vs),
-                 "signal": sig(pd(cagp_q1, cagp_c))},
+                 "signal": sig(pd(cagp_q1, cagp_c)),
+                 "pacing_raw": cagp_q1, "consensus_raw": cagp_c, "vs_cons_raw": cagp_vs},
                 {"metric": "Cash App Actives", "pacing": fac(sg(act, 17)),
                  "wow": wow_actives(act), "yoy": fp(sg(act_y, 17)),
                  "consensus": fac(sg(act, 20)),
@@ -806,7 +901,8 @@ def main():
                 {"metric": "Square Gross Profit", "pacing": fM(sqgp_q1),
                  "wow": wow_dollar(sqgp), "yoy": fp(sg(sqgp_y, 17)),
                  "consensus": fM(sqgp_c), "vs_comp": fdD(sqgp_vs),
-                 "signal": sig(pd(sqgp_q1, sqgp_c))},
+                 "signal": sig(pd(sqgp_q1, sqgp_c)),
+                 "pacing_raw": sqgp_q1, "consensus_raw": sqgp_c, "vs_cons_raw": sqgp_vs},
                 {"metric": "Global GPV", "pacing": sg(gg, 17) or "--",
                  "wow": wow_gpv(gg), "yoy": fpg(sg(gg_y, 17)),
                  "consensus": sg(gg, 20) or "--",

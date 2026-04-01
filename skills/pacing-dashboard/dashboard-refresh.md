@@ -58,7 +58,7 @@ Write results to `/tmp/mcp_actuals.json`:
 }
 ```
 
-If any MCP call fails, log the error and proceed — refresh.py will fall back to hard-coded constants and validate.py will skip MCP cross-checks. Do not block the pipeline on MCP availability.
+**IMPORTANT:** MCP actuals are required for validation to PASS. If MCP fetch fails, the validation badge will show FAIL. Always attempt the fetch. If running via `refresh.sh`, the script calls `fetch_mcp_actuals.py` (Snowflake). If running via Claude, use `mcp__blockdata__fetch_metric_data` and write the JSON file directly.
 
 ## Step 2: Read Pacing Sheet + Extract Commentary (parallel)
 

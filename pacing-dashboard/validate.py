@@ -124,6 +124,17 @@ def get_row(data, table_key, metric_name):
     return None
 
 
+def raw_or_parse(row, field, raw_field=None):
+    """Get raw numeric value if available, otherwise fall back to parsing display string.
+    Prefer _raw fields to avoid rounding errors from formatted display values."""
+    if raw_field is None:
+        raw_field = field + "_raw"
+    raw = row.get(raw_field)
+    if raw is not None:
+        return float(raw)
+    return pv_millions(row.get(field, "--"))
+
+
 def get_monthly(data, metric_id):
     """Find a monthly metric by id."""
     for m in data.get("monthly_breakdown", []):
@@ -205,9 +216,12 @@ def validate_consistency(data, results):
     cat = "Internal Consistency"
 
     # Block GP >= Cash App GP + Square GP
-    bgp = pv_millions(get_row(data, "block_table", "Block Gross Profit").get("pacing", "--"))
-    cagp = pv_millions(get_row(data, "cashapp_table", "Cash App Gross Profit").get("pacing", "--"))
-    sqgp = pv_millions(get_row(data, "square_table", "Square Gross Profit").get("pacing", "--"))
+    bgp_row = get_row(data, "block_table", "Block Gross Profit")
+    cagp_row = get_row(data, "cashapp_table", "Cash App Gross Profit")
+    sqgp_row = get_row(data, "square_table", "Square Gross Profit")
+    bgp = raw_or_parse(bgp_row, "pacing") if bgp_row else None
+    cagp = raw_or_parse(cagp_row, "pacing") if cagp_row else None
+    sqgp = raw_or_parse(sqgp_row, "pacing") if sqgp_row else None
     if bgp and cagp and sqgp:
         brand_sum = cagp + sqgp
         gap = bgp - brand_sum
@@ -224,7 +238,8 @@ def validate_consistency(data, results):
         results.add(cat, "Block GP >= CashApp + Square", "SKIP", "missing data")
 
     # AOI Margin = AOI / GP * 100
-    aoi = pv_millions(get_row(data, "block_table", "Adjusted Operating Income").get("pacing", "--"))
+    aoi_row = get_row(data, "block_table", "Adjusted Operating Income")
+    aoi = raw_or_parse(aoi_row, "pacing") if aoi_row else None
     margin_displayed = pv(get_row(data, "block_table", "AOI Margin").get("pacing", "--"))
     if bgp and aoi and margin_displayed is not None:
         margin_computed = aoi / bgp * 100
@@ -256,12 +271,13 @@ def validate_consistency(data, results):
         results.add(cat, "Rule of 40 = GP YoY + Margin", "SKIP", "missing data")
 
     # vs Consensus = Pacing - Consensus (for Block GP and AOI)
+    # Use raw values to avoid rounding errors from formatted display strings
     for metric, fmt in [("Block Gross Profit", "B"), ("Adjusted Operating Income", "M")]:
         row = get_row(data, "block_table", metric)
         if row:
-            pacing_v = pv_millions(row.get("pacing", "--"))
-            cons_v = pv_millions(row.get("consensus", "--"))
-            vs_cons_v = pv_millions(row.get("vs_cons", "--"))
+            pacing_v = raw_or_parse(row, "pacing")
+            cons_v = raw_or_parse(row, "consensus")
+            vs_cons_v = raw_or_parse(row, "vs_cons")
             if pacing_v is not None and cons_v is not None and vs_cons_v is not None:
                 computed = pacing_v - cons_v
                 delta = abs(vs_cons_v - computed)
@@ -299,7 +315,7 @@ def validate_monthly_quarterly(data, results):
             continue
 
         monthly_sum = sum(monthly_raws)
-        quarterly = pv_millions(row.get("pacing", "--"))
+        quarterly = raw_or_parse(row, "pacing")
         if quarterly is None:
             results.add(cat, f"{metric_name} monthly sum", "SKIP", "missing quarterly value")
             continue
@@ -388,7 +404,8 @@ def validate_ranges(data, results):
     cat = "Range Checks"
 
     # Block GP should be positive and in a reasonable range ($1B-$5B for a quarter)
-    bgp = pv_millions(get_row(data, "block_table", "Block Gross Profit").get("pacing", "--"))
+    bgp_row = get_row(data, "block_table", "Block Gross Profit")
+    bgp = raw_or_parse(bgp_row, "pacing") if bgp_row else None
     if bgp is not None:
         if 1000 <= bgp <= 5000:
             results.add(cat, "Block GP range", "PASS", f"${bgp:.0f}M")
@@ -396,7 +413,8 @@ def validate_ranges(data, results):
             results.add(cat, "Block GP range", "FAIL", f"${bgp:.0f}M outside $1B-$5B range")
 
     # AOI should be positive (for now) and < GP
-    aoi = pv_millions(get_row(data, "block_table", "Adjusted Operating Income").get("pacing", "--"))
+    aoi_row = get_row(data, "block_table", "Adjusted Operating Income")
+    aoi = raw_or_parse(aoi_row, "pacing") if aoi_row else None
     if aoi is not None and bgp is not None:
         if 0 < aoi < bgp:
             results.add(cat, "AOI range (0 < AOI < GP)", "PASS", f"${aoi:.0f}M")
@@ -442,8 +460,8 @@ def validate_anomalies(data, prior, results):
         if not cur_row or not pri_row:
             continue
 
-        cur_v = pv_millions(cur_row.get(field, "--"))
-        pri_v = pv_millions(pri_row.get(field, "--"))
+        cur_v = raw_or_parse(cur_row, field)
+        pri_v = raw_or_parse(pri_row, field)
         if cur_v is None or pri_v is None or pri_v == 0:
             continue
 
@@ -602,8 +620,8 @@ def validate_mcp_actuals(data, results):
 
     mcp = load_mcp_actuals()
     if mcp is None:
-        results.add(cat, "MCP data available", "SKIP",
-                    "no /tmp/mcp_actuals.json — run MCP fetch first")
+        results.add(cat, "MCP actuals cross-check", "FAIL",
+                    "no /tmp/mcp_actuals.json — MCP fetch required for validation")
         return
 
     results.add(cat, "MCP data available", "PASS", "file loaded")
