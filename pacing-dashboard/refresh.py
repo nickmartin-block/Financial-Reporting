@@ -314,8 +314,18 @@ def wow_dollar(row):
     return f"(${abs(d):.1f}M)" if d < 0 else f"+${d:.1f}M"
 
 def wow_actives(row):
+    # Prefer col 28 (pre-computed delta) — col 27 may have raw unformatted numbers
+    raw = sg(row, 28)
+    if raw:
+        v = pn(raw)
+        if v is not None:
+            if abs(v) < 0.05: return "0.0M"
+            return f"({abs(v):.1f}M)" if v < 0 else f"+{v:.1f}M"
     cur, prior = pn(sg(row, 17)), pn(sg(row, 27))
     if cur is None or prior is None: return "--"
+    # Guard against unit mismatch (col 17 in millions, col 27 in raw units)
+    if prior > 1000 and cur < 1000:
+        prior = prior / 1e6
     d = cur - prior
     if abs(d) < 0.05: return "0.0M"
     return f"({abs(d):.1f}M)" if d < 0 else f"+{d:.1f}M"

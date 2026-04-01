@@ -745,6 +745,49 @@
       background: #fce8e8;
     }
 
+    /* ─── Show All Monthly Grid ─── */
+    .monthly-all-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .monthly-all-grid .mini-table-wrapper {
+      background: #fff;
+      border: 1px solid #e2e5e9;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .monthly-all-grid .mini-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #333;
+      padding: 8px 12px 4px;
+      background: #fafbfc;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .monthly-toggle {
+      font-family: Inter, sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      color: #666;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+
+    .monthly-toggle.active {
+      background: #1a1a1a;
+      color: #fff;
+      border-color: #1a1a1a;
+    }
+
     /* ─── Responsive ─── */
     @media (max-width: 800px) {
       .scorecard-grid.block { grid-template-columns: 1fr; }
@@ -752,6 +795,7 @@
       .page { padding: 16px; }
       .header { padding: 12px 16px; }
       .tabs { padding: 0 16px; }
+      .monthly-all-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -859,13 +903,13 @@
     <div class="scorecard-grid brand" id="brand-scorecards"></div>
 
     <!-- Cash App Table -->
-    <div class="section-header" style="font-size:13px; border-bottom-width:1px; margin-top:20px;">Cash App</div>
+    <div class="section-header" style="font-size:13px; border-bottom-width:1px; margin-top:20px;">Cash App <a href="https://docs.google.com/presentation/d/1BaovDK5z8RMVSFjtr5SvX4a6YWpDywQZG4EJg8f_L2o/edit" target="_blank" style="font-size:11px; font-weight:500; color:#1a73e8; text-decoration:none; margin-left:6px;">Weekly Digest ↗</a></div>
     <div class="data-table-wrapper">
       <table class="data-table" id="cashapp-table"></table>
     </div>
 
     <!-- Square Table -->
-    <div class="section-header" style="font-size:13px; border-bottom-width:1px; margin-top:20px;">Square</div>
+    <div class="section-header" style="font-size:13px; border-bottom-width:1px; margin-top:20px;">Square <a href="https://docs.google.com/presentation/d/1ij5SkSVMLjRSMkrXkglR1k00zfNCKO6CfT9deWZy5uQ/edit" target="_blank" style="font-size:11px; font-weight:500; color:#1a73e8; text-decoration:none; margin-left:6px;">Execution Update ↗</a></div>
     <div class="data-table-wrapper">
       <table class="data-table" id="square-table"></table>
     </div>
@@ -873,16 +917,23 @@
     <!-- Monthly Breakdown (Interactive) -->
     <div class="section-header" style="margin-top:36px; display:flex; align-items:center; justify-content:space-between;">
       Monthly Breakdown
-      <select id="monthly-metric-select" style="font-family:Inter,sans-serif; font-size:12px; font-weight:600; padding:6px 12px; border:1px solid #ccc; border-radius:4px; background:#fff; color:#1a1a1a; cursor:pointer;"></select>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <select id="monthly-metric-select" style="font-family:Inter,sans-serif; font-size:12px; font-weight:600; padding:6px 12px; border:1px solid #ccc; border-radius:4px; background:#fff; color:#1a1a1a; cursor:pointer;"></select>
+        <button class="monthly-toggle" id="show-all-toggle">Show All</button>
+      </div>
     </div>
 
     <div class="data-table-wrapper">
       <table class="data-table" id="monthly-table"></table>
     </div>
 
-    <div style="background:#fff; border:1px solid #e2e5e9; border-radius:8px; padding:20px; margin-top:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);">
-      <canvas id="monthly-chart" height="220"></canvas>
+    <div id="monthly-single-view">
+      <div style="background:#fff; border:1px solid #e2e5e9; border-radius:8px; padding:20px; margin-top:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);">
+        <canvas id="monthly-chart" height="220"></canvas>
+      </div>
     </div>
+
+    <div id="monthly-all-view" class="monthly-all-grid" style="display:none;"></div>
 
     <!-- Comments -->
     <div class="comments-section" id="comments-page1"></div>
@@ -1354,6 +1405,48 @@
       });
       select.addEventListener('change', () => updateMonthlyView(select.value));
       updateMonthlyView(D.monthly_breakdown[0].id);
+
+      // Show All toggle
+      const showAllBtn = document.getElementById('show-all-toggle');
+      const singleView = document.getElementById('monthly-single-view');
+      const allView = document.getElementById('monthly-all-view');
+      const monthlyTable = document.getElementById('monthly-table').parentElement;
+      let showAll = false;
+
+      showAllBtn.addEventListener('click', () => {
+        showAll = !showAll;
+        showAllBtn.classList.toggle('active', showAll);
+        showAllBtn.textContent = showAll ? 'Single View' : 'Show All';
+        singleView.style.display = showAll ? 'none' : 'block';
+        monthlyTable.style.display = showAll ? 'none' : 'block';
+        select.style.display = showAll ? 'none' : 'block';
+        allView.style.display = showAll ? 'grid' : 'none';
+
+        if (showAll && !allView.innerHTML) {
+          allView.innerHTML = D.monthly_breakdown.map(metric => {
+            const ms = metric.months;
+            const isMargin = metric.chart_type === 'margin';
+            const row2Label = isMargin ? 'Margin' : 'YoY Growth';
+            let h = `<div class="mini-table-wrapper"><div class="mini-label">${metric.label}</div>`;
+            h += '<table class="data-table" style="font-size:11px;"><thead><tr><th style="text-align:left; padding-left:10px; width:90px"></th>';
+            ms.forEach(m => { h += `<th>${m.label}</th>`; });
+            h += '</tr></thead><tbody>';
+            h += '<tr><td style="font-weight:600; text-align:left; padding-left:10px; color:#666; font-size:10px">Value</td>';
+            ms.forEach(m => { h += `<td class="col-pacing">${m.value}</td>`; });
+            h += '</tr>';
+            h += `<tr><td style="font-weight:600; text-align:left; padding-left:10px; color:#666; font-size:10px">${row2Label}</td>`;
+            ms.forEach(m => {
+              const val = isMargin ? m.margin : m.yoy;
+              h += `<td class="${cellClass(val)}">${val}</td>`;
+            });
+            h += '</tr>';
+            h += '<tr><td style="font-weight:600; text-align:left; padding-left:10px; color:#666; font-size:10px">vs Plan</td>';
+            ms.forEach(m => { h += `<td class="${cellClass(m.vs_plan)}">${m.vs_plan}</td>`; });
+            h += '</tr></tbody></table></div>';
+            return h;
+          }).join('');
+        }
+      });
     }
 
     // Page 1 — Key Takeaways
