@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- deploy:2026-04-10T15:50 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -464,7 +465,7 @@
         window.parent.postMessage({
             type: 'cloudflare-sts-config',
             clientId: stsClientId,
-            scopes: ['g2_app_query_expert_read', 'g2_app_query_expert_execute', 'g2_app_block_data_read', 'g2_app_google_drive_read', 'g2_app_jira_read', 'g2_app_jira_write'],
+            scopes: ['g2_app_query_expert_read', 'g2_app_block_data_read', 'g2_app_google_read', 'g2_app_jira_read', 'g2_app_jira_write'],
         }, '*');
         console.log('[STS] Sent cloudflare-sts-config to G2');
     }
@@ -3523,119 +3524,16 @@ function fetchGPBySegmentForPacing() {
     return snowflakeQuery(sql).then(parseSnowflakeRows);
 }
 
-// --- Shared CSV parser ---
-function parseCSV(csvText) {
-    return csvText.split('\n').map(function(line) {
-        var cells = []; var cell = ''; var inQuote = false;
-        for (var ci = 0; ci < line.length; ci++) {
-            var ch = line[ci];
-            if (ch === '"') { inQuote = !inQuote; }
-            else if (ch === ',' && !inQuote) { cells.push(cell.trim()); cell = ''; }
-            else { cell += ch; }
-        }
-        cells.push(cell.trim());
-        return cells;
-    });
+function fetchPacingMetrics() {
+    // Actuals + Outlook for current quarter AND prior-year quarter — for pacing variance + real YoY
+    var sql = "SELECT METRIC_NAME, SCENARIO, MONTH_FIRST_DAY, SUM(USD_AMOUNT) AS TOTAL FROM APP_HEXAGON.SCHEDULE2.FINANCIAL_METRIC_SUMMARY WHERE METRIC_NAME IN ('Gross Profit','Adjusted Operating Income','Variable Profit') AND VERSION = 'Final' AND SCENARIO IN ('Actual','Latest Quarterly Outlook','Latest Annual Plan') AND ((MONTH_FIRST_DAY >= DATE_TRUNC('quarter', CURRENT_DATE()) AND MONTH_FIRST_DAY < DATEADD(quarter, 1, DATE_TRUNC('quarter', CURRENT_DATE()))) OR (MONTH_FIRST_DAY >= DATEADD(year, -1, DATE_TRUNC('quarter', CURRENT_DATE())) AND MONTH_FIRST_DAY < DATEADD(quarter, 1, DATEADD(year, -1, DATE_TRUNC('quarter', CURRENT_DATE()))))) GROUP BY METRIC_NAME, SCENARIO, MONTH_FIRST_DAY";
+    return snowflakeQuery(sql).then(parseSnowflakeRows);
 }
 
-// --- Pacing Sheet Fetch (Master Pacing Sheet) ---
-async function fetchPacingSheet() {
-    // Master Pacing Sheet: summary tab (gid=1286902198)
-    // Columns: B=labels, R(17)=Q Pacing, S(18)=AP, U(20)=Guidance, V(21)=Consensus, AC(28)=WoW
-    try {
-        var sheetId = '1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4';
-        var url = 'https://www.googleapis.com/drive/v3/files/' + sheetId + '/export?mimeType=text/csv&gid=1286902198';
-        var response = await fetch(url, { headers: { 'X-G2-Extension': 'google-drive' } });
-        if (!response.ok) throw new Error('Drive export: ' + response.status);
-        var csvText = await response.text();
-        if (csvText.startsWith('{')) {
-            try { var wrapper = JSON.parse(csvText); csvText = wrapper.data || csvText; } catch(e3) {}
-        }
-        var rows = parseCSV(csvText);
-        if (rows.length < 100) { console.log('[PacingSheet] Too few rows:', rows.length); return null; }
-        console.log('[PacingSheet] CSV parsed:', rows.length, 'rows');
-
-        // Helpers
-        function findRow(label, startRow) {
-            for (var i = (startRow || 0); i < rows.length; i++) {
-                if ((rows[i][1] || '').trim() === label) return i;
-            }
-            console.warn('[PacingSheet] Row not found:', label);
-            return -1;
-        }
-        function sg(r, c) {
-            if (r < 0 || !rows[r] || c >= rows[r].length) return '';
-            var v = (rows[r][c] || '').trim();
-            return (v === '' || v === '#N/A' || v === '#REF!' || v === '#VALUE!' || v === '#DIV/0!' || v === '--') ? '' : v;
-        }
-        function pn(s) {
-            if (!s) return null;
-            s = s.replace(/[$,%MB]/g, '').replace(/,/g, '').replace(/bps/g, '').replace(/pts/g, '').replace(/pt/g, '').trim();
-            if (s.startsWith('(') && s.endsWith(')')) s = '-' + s.slice(1, -1);
-            var v = parseFloat(s);
-            return isNaN(v) ? null : v;
-        }
-
-        // Detect quarter from row 12 col 17
-        var quarterLabel = sg(12, 17) || 'Q1';
-
-        // Row lookups by label
-        var r_bgp = findRow('Block gross profit');
-        var r_cagp = findRow('Cash App gross profit');
-        var r_sqgp = findRow('Square gross profit');
-        var r_aoi = findRow('Adjusted operating income');
-        var r_ro40 = findRow('Rule of 40');
-        var r_aoi_yoy = findRow('Adj OI YoY %');
-        var r_act = findRow('Actives', 53);
-        var r_ipa = findRow('Inflows per Active', 53);
-        var r_mon = findRow('Monetization rate', 53);
-        var r_gg = findRow('Global GPV', 90);
-        var r_ug = findRow('US GPV', 90);
-        var r_ig = findRow('International GPV', 90);
-
-        // Extract a metric with its YoY row (row+1)
-        function extractMetric(row) {
-            if (row < 0) return null;
-            var yoyLabel = (rows[row + 1] && rows[row + 1][1] || '').trim();
-            var hasYoY = (yoyLabel === 'YoY Growth (%)' || yoyLabel === 'Margin (%)');
-            return {
-                pacing: sg(row, 17), ap: sg(row, 18), guidance: sg(row, 20),
-                consensus: sg(row, 21), wow: sg(row, 28),
-                yoy: hasYoY ? sg(row + 1, 17) : '',
-                consYoY: hasYoY ? sg(row + 1, 21) : '',
-                pacing_raw: pn(sg(row, 17)), ap_raw: pn(sg(row, 18)),
-                guidance_raw: pn(sg(row, 20)), consensus_raw: pn(sg(row, 21))
-            };
-        }
-
-        var result = {
-            quarter: quarterLabel,
-            timestamp: new Date().toLocaleString(),
-            blockGP: extractMetric(r_bgp),
-            cashAppGP: extractMetric(r_cagp),
-            squareGP: extractMetric(r_sqgp),
-            aoi: extractMetric(r_aoi),
-            aoiMargin: r_aoi >= 0 ? {
-                pacing: sg(r_aoi + 1, 17), ap: sg(r_aoi + 1, 18),
-                guidance: sg(r_aoi + 1, 20), consensus: sg(r_aoi + 1, 21), wow: sg(r_aoi + 1, 28)
-            } : null,
-            aoiYoY: r_aoi_yoy >= 0 ? { pacing: sg(r_aoi_yoy, 17), consensus: sg(r_aoi_yoy, 21) } : null,
-            ro40: extractMetric(r_ro40),
-            actives: extractMetric(r_act),
-            ipa: extractMetric(r_ipa),
-            monetization: extractMetric(r_mon),
-            globalGPV: extractMetric(r_gg),
-            usGPV: extractMetric(r_ug),
-            intlGPV: extractMetric(r_ig)
-        };
-
-        console.log('[PacingSheet] Extracted metrics — Block GP:', result.blockGP && result.blockGP.pacing,
-            'AOI:', result.aoi && result.aoi.pacing, 'Quarter:', quarterLabel);
-        return result;
-    } catch(e) {
-        console.warn('[PacingSheet] Fetch failed:', e.message);
-        return null;
-    }
+function fetchGPVForPacing() {
+    // GPV actuals for current quarter and prior year
+    var sql = "SELECT REPORT_DATE, COUNTRY, VALUE FROM APP_HEXAGON.BLOCK.OPERATIONAL_METRIC_SUMMARY WHERE METRIC_NAME = 'GPV' AND BUSINESS_UNIT = 'Square' AND PERIOD = 'month' AND COUNTRY IN ('Global','US','International') AND REPORT_DATE >= DATEADD(month, -15, DATE_TRUNC('month', CURRENT_DATE())) AND REPORT_DATE < DATE_TRUNC('month', CURRENT_DATE()) ORDER BY REPORT_DATE ASC";
+    return snowflakeQuery(sql).then(parseSnowflakeRows);
 }
 
 async function fetchConsensus() {
@@ -3654,7 +3552,19 @@ async function fetchConsensus() {
         if (csvText.startsWith('{')) {
             try { var wrapper = JSON.parse(csvText); csvText = wrapper.data || csvText; } catch(e3) {}
         }
-        var data = parseCSV(csvText);
+        // Parse CSV into rows
+        var data = csvText.split('\n').map(function(line) {
+            // Simple CSV parse — handles quoted fields with commas
+            var cells = []; var cell = ''; var inQuote = false;
+            for (var ci = 0; ci < line.length; ci++) {
+                var ch = line[ci];
+                if (ch === '"') { inQuote = !inQuote; }
+                else if (ch === ',' && !inQuote) { cells.push(cell.trim()); cell = ''; }
+                else { cell += ch; }
+            }
+            cells.push(cell.trim());
+            return cells;
+        });
         if (data.length < 10) { console.log('[Consensus] CSV too few rows:', data.length); return []; }
         console.log('[Consensus] CSV parsed:', data.length, 'rows');
 
@@ -4205,242 +4115,160 @@ function renderProfitability(aoiRows, gpRows, gaapOIRows, epsRows, epsBasicRows,
 // renderAnnualView and renderQuarterlyView are replaced by renderAllForPeriod
 
 // --- Pacing table renderer ---
-function renderPacingFromSheet(sheetData) {
-    if (!sheetData) { console.log('[Pacing] No sheet data'); return; }
-    var m = sheetData.metrics;
-    var Q = sheetData.quarter;
+function renderPacingData(pacingRows, gpvRows, gpvKPI, activesKPI, r40Data, marginData, consensusRows) {
+    if (!pacingRows || pacingRows.length === 0) {
+        console.log('[Pacing] No pacing data rows');
+        return;
+    }
+    // Build separate current-quarter and prior-year-quarter lookups
+    var currentQ = {}, priorQ = {};
+    var currentQStart = new Date();
+    var currentYear = currentQStart.getFullYear();
+    var currentMonth = currentQStart.getMonth(); // 0-indexed
+    var qStartMonth = Math.floor(currentMonth / 3) * 3; // 0, 3, 6, 9
 
-    // Helpers
-    function sig(val) {
-        if (!val) return 'neutral';
-        if (val.startsWith('-') || val.startsWith('(')) return 'negative';
-        if (val.startsWith('+')) return 'positive';
-        var n = parseFloat(val.replace(/[$,%MB]/g, '').replace(/,/g, ''));
-        if (!isNaN(n) && n > 0) return 'positive';
-        return 'neutral';
-    }
-    function cls(val) { return 'cell-' + (sig(val) === 'positive' ? 'green' : (sig(val) === 'negative' ? 'red' : 'neutral')); }
-    function dot(val) { return sig(val) === 'negative' ? 'dot-red' : (sig(val) === 'positive' ? 'dot-green' : 'dot-yellow'); }
-    function rowCls(val) { return sig(val) === 'negative' ? 'row-red' : (sig(val) === 'positive' ? 'row-green' : 'row-yellow'); }
-    function v(s) { return s || '\u2014'; }
-    function dollarDelta(a, b) {
-        if (!a || !b) return '\u2014';
-        function toM(s) {
-            var isB = s.indexOf('B') >= 0;
-            var n = parseFloat(s.replace(/[$,MB]/g, ''));
-            return isNaN(n) ? NaN : (isB ? n * 1000 : n);
-        }
-        var av = toM(a), bv = toM(b);
-        if (isNaN(av) || isNaN(bv)) return '\u2014';
-        var d = av - bv;
-        if (Math.abs(d) < 0.5) return '$0M';
-        if (Math.abs(d) >= 1000) {
-            return (d >= 0 ? '+$' : '($') + (Math.abs(d) / 1000).toFixed(1) + 'B' + (d < 0 ? ')' : '');
-        }
-        return (d >= 0 ? '+$' : '($') + Math.abs(Math.round(d)) + 'M' + (d < 0 ? ')' : '');
-    }
-    function ptsDelta(a, b) {
-        if (!a || !b) return '\u2014';
-        var av = parseFloat(a.replace(/[%pts]/g, '').replace(/,/g, ''));
-        var bv = parseFloat(b.replace(/[%pts]/g, '').replace(/,/g, ''));
-        if (isNaN(av) || isNaN(bv)) return '\u2014';
-        var d = av - bv;
-        if (Math.abs(d) < 0.5) return '0 pts';
-        return (d >= 0 ? '+' : '(') + Math.abs(Math.round(d)) + ' pts' + (d < 0 ? ')' : '');
-    }
+    pacingRows.forEach(function(r) {
+        var metric = r.METRIC_NAME;
+        var scenario = r.SCENARIO;
+        var date = normalizeDate(r.MONTH_FIRST_DAY);
+        var year = parseInt(date.slice(0, 4));
+        var month = parseInt(date.slice(5, 7)) - 1; // 0-indexed
 
-    // --- Update quarter badge ---
-    var qBadge = document.querySelector('.pacing-quarter-badge');
-    if (qBadge) qBadge.textContent = Q + ' 2026';
-
-    // --- Update timestamp ---
-    var pacingTs = document.getElementById('pacing-updated');
-    if (pacingTs) pacingTs.textContent = sheetData.timestamp;
-
-    // --- Scorecards: Block Consolidated ---
-    var scGrid = document.getElementById('pacing-block-scorecards');
-    if (scGrid && m.blockGP && m.aoi && m.ro40) {
-        var gpVsCons = dollarDelta(m.blockGP.pacing, m.blockGP.consensus);
-        var aoiVsGuide = dollarDelta(m.aoi.pacing, m.aoi.guidance);
-        var ro40VsAP = ptsDelta(m.ro40.pacing, m.ro40.ap);
-        scGrid.innerHTML =
-            '<div class="tile tile--pacing tile--' + (sig(gpVsCons) === 'negative' ? 'red' : 'green') + '">' +
-                '<div class="tile-label">Gross Profit</div>' +
-                '<div class="tile-value">' + v(m.blockGP.pacing) + '</div>' +
-                '<div class="tile-meta"><span class="tile-change positive">' + v(m.blockGP.yoy) + ' YoY</span>' +
-                '<span class="tile-badge badge-' + (sig(gpVsCons) === 'negative' ? 'red' : 'green') + '">' + gpVsCons + ' vs Cons</span></div>' +
-                '<div class="tile-wow">' + (m.blockGP.wow || '\u2014') + ' WoW</div></div>' +
-            '<div class="tile tile--pacing tile--' + (sig(aoiVsGuide) === 'negative' ? 'red' : 'green') + '">' +
-                '<div class="tile-label">Adjusted Operating Income</div>' +
-                '<div class="tile-value">' + v(m.aoi.pacing) + '</div>' +
-                '<div class="tile-meta"><span class="tile-change positive">' + v(m.aoiMargin && m.aoiMargin.pacing) + ' margin</span>' +
-                '<span class="tile-badge badge-' + (sig(aoiVsGuide) === 'negative' ? 'red' : 'green') + '">' + aoiVsGuide + ' vs Guide</span></div>' +
-                '<div class="tile-wow">' + (m.aoi.wow || '\u2014') + ' WoW</div></div>' +
-            '<div class="tile tile--pacing tile--blue">' +
-                '<div class="tile-label">Rule of 40</div>' +
-                '<div class="tile-value">' + v(m.ro40.pacing) + '</div>' +
-                '<div class="tile-meta"><span class="tile-change positive">' + v(m.ro40.yoy) + ' YoY</span>' +
-                '<span class="tile-badge badge-green">' + ro40VsAP + ' vs AP</span></div>' +
-                '<div class="tile-wow">' + (m.ro40.wow || '\u2014') + ' WoW</div></div>';
-    }
-
-    // --- Block Consolidated Table (9 columns) ---
-    function blockRow(label, met, indent, yoyField) {
-        if (!met) return '';
-        var vsGuide = dollarDelta(met.pacing, met.guidance);
-        var vsCons = dollarDelta(met.pacing, met.consensus);
-        var prefix = indent ? '&nbsp;&nbsp;' : '';
-        var yoyVal = yoyField || met.yoy;
-        var consYoY = met.consYoY || '';
-        return '<tr class="' + rowCls(vsCons) + '">' +
-            '<td>' + prefix + '<span class="metric-status"><span class="metric-dot ' + dot(vsCons) + '"></span>' + label + '</span></td>' +
-            '<td class="col-pacing"><strong>' + v(met.pacing) + '</strong></td>' +
-            '<td class="col-wow ' + cls(met.wow) + '">' + v(met.wow) + '</td>' +
-            '<td class="' + cls(yoyVal) + '">' + v(yoyVal) + '</td>' +
-            '<td>' + v(met.ap) + '</td>' +
-            '<td class="' + cls(vsGuide) + '">' + v(met.guidance ? vsGuide : '') + '</td>' +
-            '<td>' + v(met.consensus) + '</td>' +
-            '<td class="' + cls(consYoY) + '">' + v(consYoY) + '</td>' +
-            '<td class="' + cls(vsCons) + '">' + v(met.consensus ? vsCons : '') + '</td></tr>';
-    }
-    var gpBody = document.getElementById('pacing-gp-body');
-    if (gpBody) {
-        var aoiYoYVal = m.aoiYoY ? m.aoiYoY.pacing : (m.aoi ? m.aoi.yoy : '');
-        var aoiConsYoYVal = m.aoiYoY ? m.aoiYoY.consensus : '';
-        gpBody.innerHTML =
-            blockRow('Block GP', m.blockGP, false) +
-            blockRow('Cash App GP', m.cashAppGP, true) +
-            blockRow('Square GP', m.squareGP, true) +
-            blockRow('Adjusted Operating Income', m.aoi, false, aoiYoYVal) +
-            (function() {
-                if (!m.aoiMargin) return '';
-                var mar = m.aoiMargin;
-                var marVsGuide = ptsDelta(mar.pacing, mar.guidance);
-                var marVsCons = ptsDelta(mar.pacing, mar.consensus);
-                return '<tr class="row-green"><td><span class="metric-status"><span class="metric-dot dot-green"></span>AOI Margin</span></td>' +
-                    '<td class="col-pacing"><strong>' + v(mar.pacing) + '</strong></td>' +
-                    '<td class="col-wow ' + cls(mar.wow) + '">' + v(mar.wow) + '</td>' +
-                    '<td>\u2014</td>' +
-                    '<td>' + v(mar.ap) + '</td>' +
-                    '<td class="' + cls(marVsGuide) + '">' + v(mar.guidance ? marVsGuide : '') + '</td>' +
-                    '<td>' + v(mar.consensus) + '</td><td>\u2014</td>' +
-                    '<td class="' + cls(marVsCons) + '">' + v(mar.consensus ? marVsCons : '') + '</td></tr>';
-            })() +
-            blockRow('Rule of 40', m.ro40, false);
-        if (aoiConsYoYVal) {
-            var aoiRow = gpBody.querySelectorAll('tr')[3];
-            if (aoiRow) {
-                var cells = aoiRow.querySelectorAll('td');
-                if (cells[7]) { cells[7].textContent = aoiConsYoYVal; cells[7].className = cls(aoiConsYoYVal); }
-            }
-        }
-    }
-
-    // --- Brand Scorecards ---
-    var brandGrid = document.getElementById('pacing-brand-scorecards');
-    if (brandGrid && m.actives && m.globalGPV) {
-        var actVsAP = m.actives.ap_raw && m.actives.pacing_raw ?
-            (m.actives.pacing_raw - m.actives.ap_raw).toFixed(1) + 'M' : '\u2014';
-        var actVsAPSig = m.actives.pacing_raw >= m.actives.ap_raw ? 'green' : 'red';
-        var gpvVsAP = dollarDelta(m.globalGPV.pacing, m.globalGPV.ap);
-        brandGrid.innerHTML =
-            '<div class="tile tile--pacing tile--' + (m.actives.pacing_raw >= m.actives.ap_raw ? 'green' : 'yellow') + '">' +
-                '<div class="tile-label">Cash App &mdash; Monthly Actives</div>' +
-                '<div class="tile-value">' + v(m.actives.pacing) + '</div>' +
-                '<div class="tile-meta"><span class="tile-change positive">' + v(m.actives.yoy) + ' YoY</span>' +
-                '<span class="tile-badge badge-' + actVsAPSig + '">' + (m.actives.pacing_raw >= m.actives.ap_raw ? '+' : '') + actVsAP + ' vs AP</span></div>' +
-                '<div class="tile-wow">' + (m.actives.wow || '\u2014') + ' WoW</div></div>' +
-            '<div class="tile tile--pacing tile--blue">' +
-                '<div class="tile-label">Square &mdash; Global GPV</div>' +
-                '<div class="tile-value">' + v(m.globalGPV.pacing) + '</div>' +
-                '<div class="tile-meta"><span class="tile-change positive">' + v(m.globalGPV.yoy) + ' YoY</span>' +
-                '<span class="tile-badge badge-' + (sig(gpvVsAP) === 'negative' ? 'red' : 'green') + '">' + gpvVsAP + ' vs AP</span></div>' +
-                '<div class="tile-wow">' + (m.globalGPV.wow || '\u2014') + ' WoW</div></div>';
-    }
-
-    // --- Cash App Detail Table (7 columns) ---
-    function detailRow(label, met, compField) {
-        if (!met) return '';
-        compField = compField || 'consensus';
-        var comp = met[compField] || '';
-        var vsComp = compField === 'guidance' ?
-            (met.pacing && met[compField] ? dollarDelta(met.pacing, met[compField]) : '\u2014') :
-            (met.pacing && met.consensus ? dollarDelta(met.pacing, met.consensus) : '\u2014');
-        if (label === 'Monthly Actives' && met.pacing_raw && met[compField + '_raw']) {
-            var d = met.pacing_raw - met[compField + '_raw'];
-            vsComp = (d >= 0 ? '+' : '') + d.toFixed(1) + 'M';
-        }
-        if (label === 'Inflows per Active' && met.pacing_raw && met[compField + '_raw']) {
-            var d2 = met.pacing_raw - met[compField + '_raw'];
-            vsComp = (d2 >= 0 ? '+$' : '($') + Math.abs(Math.round(d2)).toLocaleString() + (d2 < 0 ? ')' : '');
-        }
-        if (label === 'Monetization Rate' && met.pacing_raw && met[compField + '_raw']) {
-            var bps = Math.round((met.pacing_raw - met[compField + '_raw']) * 100);
-            vsComp = (bps >= 0 ? '+' : '(') + Math.abs(bps) + ' bps' + (bps < 0 ? ')' : '');
-        }
-        return '<tr class="' + rowCls(vsComp) + '">' +
-            '<td><span class="metric-status"><span class="metric-dot ' + dot(vsComp) + '"></span>' + label + '</span></td>' +
-            '<td class="col-pacing"><strong>' + v(met.pacing) + '</strong></td>' +
-            '<td class="col-wow ' + cls(met.wow) + '">' + v(met.wow) + '</td>' +
-            '<td class="' + cls(met.yoy) + '">' + v(met.yoy) + '</td>' +
-            '<td>' + v(met.ap) + '</td>' +
-            '<td>' + v(comp) + '</td>' +
-            '<td class="' + cls(vsComp) + '">' + v(vsComp) + '</td></tr>';
-    }
-    var caBody = document.getElementById('pacing-cashapp-body');
-    if (caBody) {
-        caBody.innerHTML =
-            detailRow('Cash App GP', m.cashAppGP, 'consensus') +
-            detailRow('Monthly Actives', m.actives, 'guidance') +
-            detailRow('Inflows per Active', m.ipa, 'guidance') +
-            detailRow('Monetization Rate', m.monetization, 'guidance');
-    }
-
-    // --- Square Detail Table (7 columns) ---
-    var sqBody = document.getElementById('pacing-square-tbody');
-    if (sqBody) {
-        sqBody.innerHTML =
-            detailRow('Square GP', m.squareGP, 'consensus') +
-            detailRow('Global GPV', m.globalGPV, 'guidance') +
-            detailRow('US GPV', m.usGPV, 'guidance') +
-            detailRow('International GPV', m.intlGPV, 'guidance');
-    }
-
-    // --- Key Takeaways ---
-    var takeawaysList = document.getElementById('pacing-takeaways-list');
-    if (takeawaysList && m.blockGP) {
-        var items = [];
-        if (m.blockGP.pacing) {
-            var gpVsCons2 = dollarDelta(m.blockGP.pacing, m.blockGP.consensus);
-            items.push('<li><strong>Gross profit</strong> pacing to <strong>' + m.blockGP.pacing + '</strong>, ' +
-                v(m.blockGP.yoy) + ' YoY' + (m.blockGP.consensus ? ', <strong>' + gpVsCons2 + ' vs. consensus</strong>' : '') + '</li>');
-        }
-        if (m.aoi && m.aoi.pacing) {
-            var aoiVsG = dollarDelta(m.aoi.pacing, m.aoi.guidance);
-            items.push('<li><strong>Adjusted operating income</strong> pacing to <strong>' + m.aoi.pacing + '</strong>, ' +
-                v(m.aoiMargin && m.aoiMargin.pacing) + ' margin' + (m.aoi.guidance ? ', <strong>' + aoiVsG + ' vs. guidance</strong>' : '') + '</li>');
-        }
-        if (m.globalGPV && m.globalGPV.pacing) {
-            items.push('<li><strong>Square GPV</strong> global growth at ' + v(m.globalGPV.yoy) +
-                (m.intlGPV ? ', with international at ' + v(m.intlGPV.yoy) : '') + '</li>');
-        }
-        if (m.actives && m.actives.pacing) {
-            var actNote = '';
-            if (m.actives.pacing_raw && m.actives.ap_raw) {
-                var actDelta = m.actives.pacing_raw - m.actives.ap_raw;
-                actNote = actDelta >= -0.05 ? ', inline with AP' : ', ' + actDelta.toFixed(1) + 'M below AP';
-            }
-            items.push('<li><strong>Cash App actives</strong> at <strong>' + m.actives.pacing + '</strong>' + actNote + '</li>');
-        }
-        takeawaysList.innerHTML = items.join('');
-    }
-
-    // --- Update table headers with dynamic quarter ---
-    document.querySelectorAll('.pacing-data-table th').forEach(function(th) {
-        th.textContent = th.textContent.replace(/Q\d/g, Q);
+        var targetLookup = (year === currentYear) ? currentQ : priorQ;
+        if (!targetLookup[metric]) targetLookup[metric] = {};
+        if (!targetLookup[metric][scenario]) targetLookup[metric][scenario] = 0;
+        targetLookup[metric][scenario] += parseFloat(r.TOTAL);
     });
 
-    console.log('[Pacing] Rendered from sheet — quarter:', Q);
+    // Alias for backward compat — existing code references lookup[metric][scenario]
+    var lookup = currentQ;
+    console.log('[Pacing] Current Q metrics:', Object.keys(currentQ).join(', '));
+    console.log('[Pacing] Prior Y metrics:', Object.keys(priorQ).join(', '));
+
+    // Build consensus lookup
+    var consensus = {};
+    if (consensusRows && consensusRows.length > 0) {
+        consensusRows.forEach(function(r) {
+            var name = r.METRIC_NAME || r.metric_name || '';
+            var val = parseFloat(r.CONSENSUS_VALUE || r.consensus_value || r.VALUE || r.value || 0);
+            if (name && val) consensus[name] = val;
+        });
+        console.log('[Pacing] Consensus metrics:', Object.keys(consensus).join(', '));
+    }
+
+    function fmt(val, unit) {
+        if (!val && val !== 0) return '\u2014';
+        if (unit === 'B') return '$' + (val / 1e9).toFixed(2) + 'B';
+        if (unit === 'M') return '$' + fmtNum(Math.round(val / 1e6)) + 'M';
+        if (unit === '%') return val.toFixed(1) + '%';
+        return val.toLocaleString();
+    }
+    function variance(actual, plan) {
+        if (!actual || !plan) return { text: '\u2014', cls: 'neutral' };
+        var diff = actual - plan;
+        var text = (diff >= 0 ? '+$' : '-$') + fmtNum(Math.round(Math.abs(diff / 1e6))) + 'M';
+        return { text: text, cls: diff >= 0 ? 'positive' : 'negative' };
+    }
+    function yoyCalc(actual, prior) {
+        if (!actual || !prior || prior === 0) return { text: '\u2014', cls: 'neutral' };
+        var pct = ((actual - prior) / prior) * 100;
+        var text = (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%';
+        return { text: text, cls: pct >= 0 ? 'positive' : 'negative' };
+    }
+
+    // Helper: build a 9-column row matching Nick's table layout
+    // Columns: Metric | Q1 Pacing | WoW Δ | YoY Growth | Q1 AP | vs. Guide | Q1 Consensus | Cons YoY | vs. Cons
+    function pacingRow(name, actual, unit, priorYear, plan, outlook, consVal, dotColor) {
+        var yoy = yoyCalc(actual, priorYear);
+        var vsPlan = variance(actual, plan);
+        var vsGuide = variance(actual, outlook);
+        var vsCon = consVal ? variance(actual, consVal) : { text: '\u2014', cls: 'neutral' };
+        var consYoY = consVal && priorYear ? yoyCalc(consVal, priorYear) : { text: '\u2014', cls: 'neutral' };
+        var dot = dotColor || 'green';
+        return '<tr class="row-' + dot + '"><td><span class="metric-status"><span class="metric-dot dot-' + dot + '"></span>' + name + '</span></td>' +
+            '<td class="col-pacing"><strong>' + fmt(actual, unit) + '</strong></td>' +
+            '<td class="col-wow cell-neutral">\u2014</td>' +
+            '<td class="' + yoy.cls + '">' + yoy.text + '</td>' +
+            '<td>' + (plan ? fmt(plan, unit) : '\u2014') + '</td>' +
+            '<td class="' + vsGuide.cls + '">' + vsGuide.text + '</td>' +
+            '<td>' + (consVal ? fmt(consVal, unit) : '\u2014') + '</td>' +
+            '<td class="' + consYoY.cls + '">' + consYoY.text + '</td>' +
+            '<td class="' + vsCon.cls + '">' + vsCon.text + '</td></tr>';
+    }
+
+    // Block Consolidated Table (GP + AOI + GPNRL + R40)
+    var gpActual = lookup['Gross Profit'] && lookup['Gross Profit']['Actual'];
+    var gpPlan = lookup['Gross Profit'] && lookup['Gross Profit']['Latest Annual Plan'];
+    var gpOutlook = lookup['Gross Profit'] && lookup['Gross Profit']['Latest Quarterly Outlook'];
+    var gpPriorYear = priorQ['Gross Profit'] && priorQ['Gross Profit']['Actual'];
+    var gpConsensus = consensus['Gross Profit'] || consensus['Block GP'];
+    var aoiActual = lookup['Adjusted Operating Income'] && lookup['Adjusted Operating Income']['Actual'];
+    var aoiPlan = lookup['Adjusted Operating Income'] && lookup['Adjusted Operating Income']['Latest Annual Plan'];
+    var aoiOutlook = lookup['Adjusted Operating Income'] && lookup['Adjusted Operating Income']['Latest Quarterly Outlook'];
+    var aoiPriorYear = priorQ['Adjusted Operating Income'] && priorQ['Adjusted Operating Income']['Actual'];
+    var aoiConsensus = consensus['Adjusted Operating Income'] || consensus['AOI'];
+
+    var gpBody = document.getElementById('pacing-gp-body');
+    if (gpBody && gpActual) {
+        var rows = '';
+        rows += pacingRow('Block GP', gpActual, 'M', gpPriorYear, gpPlan, gpOutlook, gpConsensus);
+        if (aoiActual) {
+            rows += pacingRow('Adjusted Operating Income', aoiActual, 'M', aoiPriorYear, aoiPlan, aoiOutlook, aoiConsensus);
+            var aoiMarginPct = gpActual > 0 ? (aoiActual / gpActual * 100).toFixed(1) + '%' : '\u2014';
+            rows += '<tr class="row-green"><td><span class="metric-status"><span class="metric-dot dot-green"></span>AOI Margin</span></td><td class="col-pacing"><strong>' + aoiMarginPct + '</strong></td><td class="col-wow cell-neutral">\u2014</td><td colspan="6" class="cell-neutral"></td></tr>';
+        }
+        if (r40Data && r40Data.length > 0) {
+            var latestR40 = r40Data[r40Data.length - 1];
+            rows += '<tr class="row-green"><td><span class="metric-status"><span class="metric-dot dot-green"></span>Rule of 40</span></td><td class="col-pacing"><strong>' + latestR40.ruleOf40.toFixed(1) + '</strong></td><td class="col-wow cell-neutral">\u2014</td><td colspan="6" class="cell-neutral"></td></tr>';
+        }
+        gpBody.innerHTML = rows;
+    }
+
+    // Square Table
+    if (gpvKPI) {
+        var sqBody = document.getElementById('pacing-square-tbody');
+        var gpvConsensus = consensus['Square GPV'] || consensus['Square Global GPV'];
+        if (sqBody) {
+            var gpvYoY = yoyCalc(gpvKPI.currentValue, gpvKPI.priorValue);
+            var gpvVsCon = gpvConsensus ? variance(gpvKPI.currentValue, gpvConsensus) : { text: '\u2014', cls: 'neutral' };
+            sqBody.innerHTML = '<tr class="row-green"><td><span class="metric-status"><span class="metric-dot dot-green"></span>Global GPV</span></td>' +
+                '<td class="col-pacing"><strong>' + fmt(gpvKPI.currentValue, 'B') + '</strong></td>' +
+                '<td class="col-wow cell-neutral">\u2014</td>' +
+                '<td class="' + gpvYoY.cls + '">' + gpvYoY.text + '</td>' +
+                '<td>\u2014</td>' +
+                '<td>' + (gpvConsensus ? fmt(gpvConsensus, 'B') : '\u2014') + '</td>' +
+                '<td class="' + gpvVsCon.cls + '">' + gpvVsCon.text + '</td></tr>';
+        }
+    }
+
+    // Cash App Table
+    if (activesKPI) {
+        var caBody = document.getElementById('pacing-cashapp-body');
+        var caYoY = yoyCalc(activesKPI.currentValue, activesKPI.priorValue);
+        var caConsensus = consensus['Cash App Actives'] || consensus['Cash Monthly Transacting Actives'];
+        var caVsCon = caConsensus ? variance(activesKPI.currentValue, caConsensus) : { text: '\u2014', cls: 'neutral' };
+        if (caBody) {
+            caBody.innerHTML = '<tr class="row-green"><td><span class="metric-status"><span class="metric-dot dot-green"></span>Monthly Actives</span></td>' +
+                '<td class="col-pacing"><strong>' + (activesKPI.currentValue / 1e6).toFixed(1) + 'M</strong></td>' +
+                '<td class="col-wow cell-neutral">\u2014</td>' +
+                '<td class="' + caYoY.cls + '">' + caYoY.text + '</td>' +
+                '<td>\u2014</td>' +
+                '<td>' + (caConsensus ? (caConsensus / 1e6).toFixed(1) + 'M' : '\u2014') + '</td>' +
+                '<td class="' + caVsCon.cls + '">' + caVsCon.text + '</td></tr>';
+        }
+    }
+
+    // Update pacing timestamp
+    var pacingTs = document.getElementById('pacing-updated');
+    if (pacingTs) pacingTs.textContent = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    // Update takeaways with actual values
+    var takeaways = document.querySelector('.pacing-takeaways');
+    if (takeaways && gpActual) {
+        var items = takeaways.querySelectorAll('.takeaway-item span:last-child');
+        if (items[0] && gpActual) items[0].innerHTML = '<strong>Block GP</strong> pacing to ' + fmt(gpActual, 'M') + (gpPlan ? ', ' + variance(gpActual, gpPlan).text + ' vs plan' : '');
+        if (items[1] && aoiActual) items[1].innerHTML = '<strong>AOI</strong> pacing to ' + fmt(aoiActual, 'M') + ' (' + aoiMarginPct + ' margin)' + (aoiPlan ? ', ' + variance(aoiActual, aoiPlan).text + ' vs plan' : '');
+    }
 }
 
 // --- showError ---
@@ -4540,8 +4368,8 @@ async function refreshData() {
             fetchGPVByCountry(),                                       // 9: GPV by country
             fetchGPVDaily(),                                           // 10: GPV daily (for weekly YoY)
             fetchGPBySegment(25),                                      // 11: GP by segment
-            fetchPacingSheet(),                                        // 12: Pacing from Master Sheet
-            Promise.resolve([]),                                       // 13: (reserved — was GPV pacing)
+            fetchPacingMetrics(),                                      // 12: Pacing actuals vs outlook
+            fetchGPVForPacing(),                                       // 13: GPV for pacing
             fetchConsensus(),                                          // 14: Consensus estimates
             fetchTotalOpEx(25),                                        // 15: Total Block GAAP Opex
             fetchRiskLoss(25),                                         // 16: Risk Loss Opex
@@ -4580,11 +4408,10 @@ async function refreshData() {
             }
         });
 
-        var queryNames = ['Square GPV', 'Cash Actives', 'Gross Profit', 'AOI', 'Variable Profit', 'Inflows Daily', 'Inflows Weekly', 'Actives Weekly', 'Banking', 'GPV Country', 'GPV Daily', 'GP Segment', 'Pacing Sheet', '(reserved)', 'Consensus', 'Total OpEx', 'Risk Loss', 'EPS Adj', 'GAAP OI', 'EPS Basic', 'OpEx Breakdown', 'GPV Growth', 'Inflows Monthly'];
+        var queryNames = ['Square GPV', 'Cash Actives', 'Gross Profit', 'AOI', 'Variable Profit', 'Inflows Daily', 'Inflows Weekly', 'Actives Weekly', 'Banking', 'GPV Country', 'GPV Daily', 'GP Segment', 'Pacing', 'GPV Pacing', 'Consensus', 'Total OpEx', 'Risk Loss', 'EPS Adj', 'GAAP OI', 'EPS Basic', 'OpEx Breakdown', 'GPV Growth', 'Inflows Monthly'];
         results.forEach(function(r, i) {
-            if (r.status === 'rejected') console.error('[BDM ' + i + ' ' + queryNames[i] + '] FAILED:', r.reason);
-            else if (i === 12) console.log('[BDM 12 Pacing Sheet] OK:', r.value ? 'loaded' : 'null');
-            else console.log('[BDM ' + i + ' ' + queryNames[i] + '] OK:', (r.value || []).length, 'rows');
+            if (r.status === 'rejected') console.error('[Query ' + i + ' ' + queryNames[i] + '] FAILED:', r.reason);
+            else console.log('[Query ' + i + ' ' + queryNames[i] + '] OK:', (r.value || []).length, 'rows');
         });
 
         function getRows(idx) { return results[idx].status === 'fulfilled' ? results[idx].value : []; }
@@ -4759,12 +4586,10 @@ async function refreshData() {
 
         // GP by Segment — rendered inside period conditional block below (no pre-render needed)
 
-        // Pacing tables — from Master Pacing Sheet
+        // Pacing tables
         try {
             metricsData._consensusRows = getRows(14);
-            var pacingSheetData = results[12].status === 'fulfilled' ? results[12].value : null;
-            metricsData._pacingSheet = pacingSheetData;
-            renderPacingFromSheet(pacingSheetData);
+            renderPacingData(getRows(12), getRows(13), metricsData.squareGPV, metricsData.cashActives, metricsData.ruleOf40, metricsData.marginSeries, getRows(14));
         } catch(e) { console.error('[Tile] Pacing error:', e.message); }
 
         // Store new vision data
@@ -4874,7 +4699,6 @@ async function init() {
         console.log('[Init] Valid cache found, rendering');
         window._lastMetricsData = cached;
         renderAllForPeriod(cached, _currentPeriod);
-        if (cached._pacingSheet) renderPacingFromSheet(cached._pacingSheet);
         return;
     }
     if (cached) console.log('[Init] Cache hit but no meaningful data — refetching');

@@ -10,14 +10,21 @@ permissions:
   connections:
     - query-expert
     - block-data
-    - google-drive
+    - google
     - jira
-    # glean not supported for app tool calls (not in CAPABILITY_TO_EXTENSIONS map)
+  extensions:
+    query-expert:
+      access: read
+    block-data:
+      access: read
+    google:
+      access: read
+    jira:
+      access: write
   scopes:
     - query-expert.read
-    - query-expert.execute
     - block-data.read
-    - google-drive.read
+    - google.read
     - jira.write
   approval: auto
 mcp_tools:
@@ -37,4 +44,3 @@ mcp_tools:
     provider: block-data
     required: false
     description: Fetch governed financial metrics from Block Metrics Store
-  # glean/search not available for apps — not in CAPABILITY_TO_EXTENSIONS map
