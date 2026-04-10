@@ -1,0 +1,40 @@
+app_id: finance-copilot
+name: Finance Copilot
+description: AI-powered financial metrics dashboard and IR document search for F&S
+owners:
+  - nmart
+type: ui
+runtime: cloudflare-worker
+entrypoint: server/index.js
+permissions:
+  connections:
+    - query-expert
+    - block-data
+    - google-drive
+    - jira
+    # glean not supported for app tool calls (not in CAPABILITY_TO_EXTENSIONS map)
+  scopes:
+    - query-expert.read
+    - query-expert.execute
+    - block-data.read
+    - google-drive.read
+    - jira.write
+  approval: auto
+mcp_tools:
+  - name: execute_query
+    provider: query-expert
+    required: true
+    description: Execute a SQL query against Snowflake via Query Expert
+  - name: find_table_meta_data
+    provider: query-expert
+    required: false
+    description: Discover relevant Snowflake tables for a given question
+  - name: check_permissions
+    provider: query-expert
+    required: false
+    description: Check user access to specific Snowflake tables
+  - name: fetch_metric_data
+    provider: block-data
+    required: false
+    description: Fetch governed financial metrics from Block Metrics Store
+  # glean/search not available for apps — not in CAPABILITY_TO_EXTENSIONS map

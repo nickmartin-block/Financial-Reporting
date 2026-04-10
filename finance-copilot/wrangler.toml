@@ -1,0 +1,8 @@
+name = "finance-copilot"
+main = "src/server.ts"
+compatibility_date = "2025-04-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "finance-copilot-cache"
+database_id = "local"
