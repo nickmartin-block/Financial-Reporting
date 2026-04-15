@@ -69,6 +69,12 @@ Assign an emoji based on vs-forecast delta only:
 - Yellow circle = delta between -0.5% and +0.5%
 - Red circle = delta < -0.5%
 
+**Exception — Non-Lending GP YoY:** The "Lending vs. Non-Lending (YoY)" parent bullet uses **non-lending YoY growth rate** for its emoji, not the standard delta vs forecast:
+- Green circle = non-lending YoY > 12%
+- Yellow circle = non-lending YoY between 8% and 12%
+- Red circle = non-lending YoY < 8%
+This reflects that low single-digit non-lending growth is a structural watch item regardless of forecast performance. The sub-bullets for Lending and Non-Lending (vs. forecast) still use the standard delta thresholds.
+
 If a metric is missing from the sheet, note it as `[DATA MISSING: {metric}]`.
 
 ---
