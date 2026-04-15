@@ -8,9 +8,11 @@ from __future__ import annotations
 apply_colors.py
 
 Generate Google Docs API batch-update JSON to apply conditional green/red
-text colors on Delta vs. AP rows in the Block Performance Digest tables.
+text colors on Delta rows in the Block Performance Digest tables.
 
 Positive deltas → green, negative deltas → red, zero/nm/-- → no color.
+Colors both the delta percentage cells AND the corresponding metric value
+cells (the row showing absolute dollar/count values).
 
 Usage:
     python3 apply_colors.py DOC_JSON TAB_ID
@@ -44,7 +46,10 @@ RED = {
 }
 
 # Row labels that should receive conditional coloring
-DELTA_LABELS = {"Delta vs. AP (%)", "Delta vs. AP (pts)"}
+DELTA_LABELS = {
+    "Delta vs. AP (%)", "Delta vs. AP (pts)",
+    "Delta vs. Q2OL (%)", "Delta vs. Q2OL (pts)", "Delta vs. Q2OL (bps)",
+}
 
 # Values that should NOT be colored
 SKIP_VALUES = {"", "--", "nm"}
@@ -92,8 +97,39 @@ def is_negative(text: str) -> bool:
     return text.startswith("(") or text.startswith("-")
 
 
+def _color_text_runs(cell: dict, color: dict, tab_id: str, requests: list) -> None:
+    """Add foreground-color requests for every non-empty text run in *cell*."""
+    for p in cell.get("content", []):
+        for el in p.get("paragraph", {}).get("elements", []):
+            tr = el.get("textRun", {})
+            text = tr.get("content", "").strip()
+            start = el.get("startIndex")
+            end = el.get("endIndex")
+            if not text or text in SKIP_VALUES or start is None or end is None:
+                continue
+            requests.append({
+                "updateTextStyle": {
+                    "range": {
+                        "startIndex": start,
+                        "endIndex": end - 1,
+                        "tabId": tab_id,
+                    },
+                    "textStyle": {
+                        "foregroundColor": {"color": {"rgbColor": color}}
+                    },
+                    "fields": "foregroundColor",
+                }
+            })
+
+
 def build_color_requests(body: list, tab_id: str) -> list[dict]:
-    """Scan all tables for Delta rows and build color update requests."""
+    """Scan all tables for Delta rows and build color update requests.
+
+    Colors both the delta percentage cells AND the corresponding metric
+    value cells (the row showing absolute dollar/count values).  The value
+    row sits 2 rows above a ``(%)`` / ``(bps)`` delta row or 1 row above a
+    ``(pts)`` delta row (Rule of 40).
+    """
     requests = []
 
     for elem in body:
@@ -101,7 +137,9 @@ def build_color_requests(body: list, tab_id: str) -> list[dict]:
         if not tbl:
             continue
 
-        for row in tbl["tableRows"]:
+        table_rows = tbl["tableRows"]
+
+        for row_idx, row in enumerate(table_rows):
             cells = row.get("tableCells", [])
             if not cells:
                 continue
@@ -110,6 +148,15 @@ def build_color_requests(body: list, tab_id: str) -> list[dict]:
             first_text = extract_cell_text(cells[0])
             if first_text not in DELTA_LABELS:
                 continue
+
+            # Locate the value row: pts → 1 row above, % / bps → 2 rows above
+            value_offset = 1 if "pts" in first_text else 2
+            value_row_idx = row_idx - value_offset
+            value_cells = (
+                table_rows[value_row_idx].get("tableCells", [])
+                if 0 <= value_row_idx < len(table_rows)
+                else []
+            )
 
             # Process data cells (skip label column)
             for col_idx, cell in enumerate(cells):
@@ -130,6 +177,7 @@ def build_color_requests(body: list, tab_id: str) -> list[dict]:
 
                         color = RED if is_negative(text) else GREEN
 
+                        # Color the delta cell
                         requests.append({
                             "updateTextStyle": {
                                 "range": {
@@ -145,6 +193,12 @@ def build_color_requests(body: list, tab_id: str) -> list[dict]:
                                 "fields": "foregroundColor",
                             }
                         })
+
+                        # Color the corresponding value row cell
+                        if col_idx < len(value_cells):
+                            _color_text_runs(
+                                value_cells[col_idx], color, tab_id, requests,
+                            )
 
     # Sort descending by startIndex for safe batch application
     requests.sort(
