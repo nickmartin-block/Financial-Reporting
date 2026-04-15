@@ -97,7 +97,9 @@ Scan for the most recent message from mjansing (user ID `U01K3T9BQ21`) that cont
 
 ## Step 4 — Generate the summary
 
-Combine the sheet data and Slack message into a markdown file using this template:
+Combine the sheet data and Slack message into a markdown file using this template.
+
+**Forecast label:** Use the abbreviated form per the financial-reporting skill: Q1=AP, Q2=Q2OL, Q3=Q3OL, Q4=Q4OL. Never write out the full name (e.g., write "Q2OL" not "Q2 Outlook"). The template below uses `[F]` as shorthand — substitute the correct abbreviation at runtime.
 
 ```
 # Weekly Performance Summary — [Month] [Year] (Week of [date])
@@ -108,22 +110,22 @@ Cash App Weekly Digest from mjansing ([digest date, or "pending"])._
 ---
 
 ## Gross Profit
-- [emoji] **Block gross profit** is pacing to [Value] in [Month] ([+/-]% YoY), [+/-Delta]% ([+/-$Delta]) [above/below] AP
-  - **Cash App gross profit** pacing to [Value] ([+/-]% YoY), [+/-Delta]% [above/below] AP
-  - **Square gross profit** pacing to [Value] ([+/-]% YoY), [+/-Delta]% [above/below] AP
+- [emoji] **Block gross profit** is pacing to [Value] in [Month] ([+/-]% YoY), [+/-Delta]% ([+/-$Delta]) [above/below] [F]
+  - **Cash App gross profit** pacing to [Value] ([+/-]% YoY), [+/-Delta]% [above/below] [F]
+  - **Square gross profit** pacing to [Value] ([+/-]% YoY), [+/-Delta]% [above/below] [F]
 
 ## Profitability
-- [emoji] **Adjusted operating income** pacing to [Value] ([+/-]% YoY), [+/-Delta]% ([+/-$Delta]) [above/below] AP
+- [emoji] **Adjusted operating income** pacing to [Value] ([+/-]% YoY), [+/-Delta]% ([+/-$Delta]) [above/below] [F]
 
 ## Square GPV
-- [emoji] **Global GPV** pacing to [Value] ([+/-]% YoY), [+/-Delta]% [above/below] AP
-  - **US GPV** at [Value] ([+/-]% YoY), [+/-Delta]% [above/below] AP
-  - **International GPV** at [Value] ([+/-]% YoY), [+/-Delta]% [above/below] AP
+- [emoji] **Global GPV** pacing to [Value] ([+/-]% YoY), [+/-Delta]% [above/below] [F]
+  - **US GPV** at [Value] ([+/-]% YoY), [+/-Delta]% [above/below] [F]
+  - **International GPV** at [Value] ([+/-]% YoY), [+/-Delta]% [above/below] [F]
 
 ## Cash App Inflows Framework
-- [emoji] **Actives** pacing to [Value] ([+/-]% YoY), [+/-Delta]% [above/below] AP
-- [emoji] **Inflows per active** at [Value] ([+/-]% YoY), [+/-Delta]% [above/below] AP
-- [emoji] **Monetization rate** at [Value] ([+/-] bps YoY), [+/-] bps [above/below] AP
+- [emoji] **Actives** pacing to [Value] ([+/-]% YoY), [+/-Delta]% [above/below] [F]
+- [emoji] **Inflows per active** at [Value] ([+/-]% YoY), [+/-Delta]% [above/below] [F]
+- [emoji] **Monetization rate** at [Value] ([+/-] bps YoY), [+/-] bps [above/below] [F]
 
 ### Cash App Commentary (mjansing — [date])
 > [Full text of mjansing's digest message, blockquoted]
@@ -133,8 +135,8 @@ Key takeaways:
 - [Another synthesis bullet if applicable]
 
 ## Commerce
-- [emoji] **Commerce inflows** pacing to [Value] ([+/-]% YoY), [+/-Delta]% [above/below] AP
-- [emoji] **Commerce monetization rate** at [Value] ([+/-] bps YoY), [+/-] bps [above/below] AP
+- [emoji] **Commerce inflows** pacing to [Value] ([+/-]% YoY), [+/-Delta]% [above/below] [F]
+- [emoji] **Commerce monetization rate** at [Value] ([+/-] bps YoY), [+/-] bps [above/below] [F]
 ```
 
 **If the Cash digest is pending**, replace the Commentary section with:
