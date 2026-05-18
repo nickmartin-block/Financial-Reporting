@@ -256,7 +256,7 @@ Write to `~/Desktop/Nick's Cursor/Monthly Reporting/monthly_flash_YYYY_MM.md`.
 
 ## Step 6 — Publish to Google Doc
 
-The target tab (`{TAB_ID}`) is a persistent template: H1 with `[MONTH] [YEAR]` placeholders, italic disclaimer with `[MRP DATE]` + `[YEAR]` placeholders, H2 "[MONTH] Summary", empty narrative space, H2 "Summary Table", 28×7 table shell. **Do not clear the tab** — operate in place.
+The target tab (`{TAB_ID}`) is a persistent template: H1 `Block Topline Flash: [MONTH] [YEAR]`, italic disclaimer with `[MRP DATE]` + `[YEAR]` placeholders, H2 `[MONTH] [YEAR] Summary`, empty narrative space, H2 `Summary Table`, 28×7 table shell. **Do not clear the tab** — operate in place.
 
 ### 6a — Fill template placeholders
 
@@ -265,12 +265,64 @@ cd ~/skills/gdrive && uv run gdrive-cli.py docs replace {DOC_ID} --find "[MONTH]
 cd ~/skills/gdrive && uv run gdrive-cli.py docs replace {DOC_ID} --find "[YEAR]" --replace "{Year}"
 ```
 
-For quarterly mode, also adjust H2 from "MonthName Summary" → "Q{N} {Year} Summary":
+**Disclaimer comparison anchor + quarterly H1/H2 fixes** — these CANNOT use the doc-wide `docs replace` (it would pollute other tabs that happen to share the find text). Use a single tab-scoped `batchUpdate` with `replaceAllText` + `tabsCriteria`. The block below normalizes the disclaimer regardless of its prior state (handles shells that were previously run for any quarter):
+
+Set `{TARGET_DISCLAIMER}` based on the run's quarter:
+- Q1: `"Annual Plan unless otherwise noted"`
+- Q2: `"Q2 Outlook unless otherwise noted"`
+- Q3: `"Q3 Outlook unless otherwise noted"`
+- Q4: `"Q4 Outlook unless otherwise noted"`
+
+For **monthly mode** runs (any month), build and apply:
+
 ```bash
-cd ~/skills/gdrive && uv run gdrive-cli.py docs replace {DOC_ID} --find "{MonthName} Summary" --replace "Q{N} {Year} Summary"
+python3 -c "
+import json
+TAB_ID = '{TAB_ID}'
+TARGET = '{TARGET_DISCLAIMER}'
+prior_states = [
+    'Annual Plan unless otherwise noted',
+    'Q1 Outlook unless otherwise noted',
+    'Q2 Outlook unless otherwise noted',
+    'Q3 Outlook unless otherwise noted',
+    'Q4 Outlook unless otherwise noted',
+]
+requests = [
+    {'replaceAllText': {
+        'containsText': {'text': s, 'matchCase': True},
+        'replaceText': TARGET,
+        'tabsCriteria': {'tabIds': [TAB_ID]}
+    }} for s in prior_states if s != TARGET
+]
+print(json.dumps({'requests': requests}))
+" | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
 ```
 
-**Caveat:** `gdrive-cli.py docs replace` is NOT tab-scoped. Confirm the placeholder strings don't exist in other tabs of the same Doc before running; if they do, use direct `batchUpdate` with `tabId` instead.
+For **quarterly mode** runs, ALSO swap the H1 + H2 labels. The `[MONTH] [YEAR]` placeholder fill above produces e.g. "June 2026" but quarterly should read "Q2 2026":
+
+```bash
+python3 -c "
+import json
+TAB_ID = '{TAB_ID}'
+MONTH_YEAR = '{MonthName} {Year}'          # e.g. 'June 2026' — what [MONTH] [YEAR] resolves to
+QUARTER_YEAR = 'Q{N} {Year}'                # e.g. 'Q2 2026' — what we want for quarterly runs
+requests = [
+    {'replaceAllText': {
+        'containsText': {'text': f'Block Topline Flash: {MONTH_YEAR}', 'matchCase': True},
+        'replaceText': f'Block Topline Flash: {QUARTER_YEAR}',
+        'tabsCriteria': {'tabIds': [TAB_ID]}
+    }},
+    {'replaceAllText': {
+        'containsText': {'text': f'{MONTH_YEAR} Summary', 'matchCase': True},
+        'replaceText': f'{QUARTER_YEAR} Summary',
+        'tabsCriteria': {'tabIds': [TAB_ID]}
+    }},
+]
+print(json.dumps({'requests': requests}))
+" | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
+```
+
+**Why tab-scoped:** the [MONTH]/[YEAR] placeholder replaces above are safe doc-wide because placeholders only exist in unfilled tabs. The disclaimer + H1/H2 replaces target FILLED text — running them doc-wide would change every tab in the doc that happens to share the find string. `tabsCriteria.tabIds` restricts the replacement to `{TAB_ID}` only.
 
 `[MRP DATE]` stays — Nick fills in manually.
 
