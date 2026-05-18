@@ -61,27 +61,27 @@ Corporate-Financial-Reporting/
 ├── numerius.md                      Agent identity & operating manual
 ├── financial-reporting.md           Global formatting recipe (v1.3.0)
 │
-├── skills/
+├── skills/                          Reporting deliverables — each subdir bundles the slash commands and domain skills for one deliverable
 │   ├── weekly-reporting/            Weekly Performance Digest
-│   │   ├── commands/                  /weekly-summary, /weekly-tables, /weekly-validate
-│   │   ├── skills/                    Table specs, validation logic, formatting recipe
+│   │   ├── commands/                  Slash commands: /weekly-summary, /weekly-tables, /weekly-validate
+│   │   ├── skills/                    Domain skills: table specs, validation logic, formatting recipe
 │   │   └── gdrive/                    Google Drive CLI (shared tool)
 │   │
 │   ├── monthly-flash/               Monthly Topline Flash
-│   │   ├── commands/                  /monthly-flash, /monthly-validate
-│   │   ├── skills/                    Formatting recipe (inherited)
-│   │   └── flash-data/                /flash-data command, sourcing skill, Python helpers
+│   │   ├── commands/                  Slash commands: /monthly-flash, /monthly-validate
+│   │   ├── skills/                    Domain skills: formatting recipe (inherited)
+│   │   └── flash-data/                /flash-data command + sourcing skill + Python helpers
 │   │
 │   ├── monthly-reporting-pack/      Monthly Management Reporting Pack
-│   │   ├── commands/                  /mrp, /mrp-data, /mrp-validate
-│   │   └── skills/                    MRP-specific logic, data packet schema
+│   │   ├── commands/                  Slash commands: /mrp, /mrp-data, /mrp-validate
+│   │   └── skills/                    Domain skills: MRP-specific logic, data packet schema
 │   │
 │   ├── pacing-dashboard/            Pacing Dashboard
-│   │   └── commands/                  /dashboard-refresh
+│   │   └── commands/                  Slash commands: /dashboard-refresh
 │   │
 │   └── audit/                       Audit Layer
-│       ├── commands/                  /audit, /audit-workflow
-│       └── skills/                    Workflow registry, check definitions
+│       ├── commands/                  Slash commands: /audit, /audit-workflow
+│       └── skills/                    Domain skills: workflow registry, check definitions
 │
 └── pacing-dashboard/                Dashboard static site (HTML/CSS/JS)
 ```
@@ -106,35 +106,31 @@ Source → Validate Source → Populate → Review → Deliver & Validate
 
 ---
 
-## Weekly Digest Steps
-
-| Step | What it does |
-|------|-------------|
-| 1 | Auth check (Google Drive + Slack) |
-| 2 | Read master pacing sheet (20+ metrics, monthly + quarterly) |
-| 3 | Scan Slack for Cash App and Square brand digests |
-| 4 | Generate Summary (emoji narrative) + Overview commentary (no tables in markdown) |
-| 5 | Save dated .md file |
-| 5.5a | Find Nick's pre-existing template tab (by date match) |
-| 5.5b | Populate template tables via Docs API batch-update (Roboto 10pt, center-aligned, conditional colors) |
-| 5.5d | Insert commentary sections between headings and tables (bottom-to-top) |
-| 5.5e | Format commentary — 10pt font, bullet nesting, bold labels, yellow highlights |
-| 6 | Validate every table cell against source sheet |
-| 7 | Report results to user |
-| 8 | Send Slack DM with key takeaways + doc link |
-
----
-
 ## Quick Start
 
-1. Open Claude Code in the project directory
-2. For weekly digest:
-   - **Duplicate the template tab** in the Google Doc and rename to this week's date (e.g., `3/31`)
-   - Run `/weekly-summary`
-3. For monthly flash:
-   - Run `/monthly-flash`
-4. For MRP:
-   - Run `/mrp-data` to fetch and inspect the data packet
-   - Run `/mrp` for the full pipeline
+To run Numerius on a fresh machine:
 
-All commands handle auth, data extraction, formatting, publishing, and validation end-to-end.
+1. **Clone the repo** anywhere on disk and capture the path:
+   ```bash
+   git clone https://github.com/nickmartin-block/Corporate-Financial-Reporting.git
+   cd Corporate-Financial-Reporting && export REPO_ROOT=$(pwd)
+   ```
+
+2. **Wire deliverables into Claude Code's discovery path.** Symlink each `skills/<deliverable>/` into `~/skills/`, then symlink each deliverable's `commands/*.md` into `~/.claude/commands/` so the slash commands are invokable from any working directory:
+   ```bash
+   mkdir -p ~/skills ~/.claude/commands
+   for d in monthly-flash monthly-reporting-pack weekly-reporting pacing-dashboard audit; do
+     ln -s "$REPO_ROOT/skills/$d" ~/skills/$d
+     for cmd in "$REPO_ROOT/skills/$d/commands/"*.md; do
+       ln -s "$cmd" ~/.claude/commands/$(basename "$cmd")
+     done
+   done
+   ```
+
+3. **Authenticate the data sources** (one-time per machine):
+   - **Google Drive / Sheets / Docs**: `cd ~/skills/weekly-reporting/gdrive && uv run gdrive-cli.py auth login`
+   - **Block Data MCP**, **Snowflake MCP**, **Slack MCP**: configure each in Claude Code's MCP server settings; the first invocation surfaces the OAuth prompt or auth instructions
+
+4. **Smoke test.** Open Claude Code in any directory and run `/weekly-validate` — it auth-checks Google Drive and returns a validation report, confirming the pipeline is wired correctly.
+
+Once set up, day-to-day usage is just the slash command for the target deliverable (see [Deliverables](#deliverables) above).
