@@ -554,7 +554,7 @@ def build_narrative(packet: dict, period: str, ol_label: str, ol_year: int, mode
 
 **Adjusted Operating Income** landed at {f("adj_oi", A)} in {period_label}{aoi_margin_phrase}, {variance_phrase(v("adj_oi", OL_P), v("adj_oi", OL_D), ol_label)} and {v("adj_oi", YOY)} YoY{pmyoy_paren("adj_oi")}.
 
-**{period_label} Rule of 40** was {f("r40", A)}, {variance_phrase(v("r40", OL_P), "", ol_label)}, and {r40_ap_str} above AP ({v("r40", YOY)} YoY{', ' + v("r40", PMYOY) + ' in ' + prior_month if not is_quarterly else ''}).
+**{period_label} Rule of 40** was {reformat_variance(f("r40", A))}, {variance_phrase(v("r40", OL_P), "", ol_label)}, and {r40_ap_str} above AP ({v("r40", YOY)} YoY{', ' + v("r40", PMYOY) + ' in ' + prior_month if not is_quarterly else ''}).
 """
 
     return md

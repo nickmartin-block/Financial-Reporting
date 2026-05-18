@@ -10,7 +10,7 @@ Each month after close, Block FP&A publishes a topline flash email with prelimin
 
 1. **Builds the data layer** (`/flash-data`) — pulls every in-scope metric directly from BDM + Snowflake, computes derivations (Rule of 40, Adj OpEx via GP − Adj OI identity, V/A/F bucket totals, etc.), and writes raw values + cell formats into the brand reporting model at `MRP Charts & Tables!L400:S427` (28×8 Flash table) and `L432:R468` (37×7 Standardized P&L). Also emits a JSON packet at `/tmp/flash_out_{month}.json` with formatted strings + raw values + line-item OpEx detail for driver attribution.
 
-2. **Detects monthly vs. quarterly mode** — at quarter-end months (March, June, September, December), the command will switch to quarterly mode (narrative anchored to the full quarter, QTD columns). v2.0 ships monthly-only; quarterly mode is a planned follow-up.
+2. **Detects monthly vs. quarterly mode** — at quarter-end months (March, June, September, December), the command switches to quarterly mode: narrative anchors to the full quarter (`Q1 / Q2 / Q3 / Q4 {Year}`), reads the QTD-summed columns at `T400:Y427`, and drops the prior-month YoY parenthetical (no QTD equivalent). Intra-quarter months run monthly mode against `L400:S427`. Auto-detected from the report period.
 
 3. **Generates the narrative** — writes a structured flash report with:
    - **Title block**: "Block Topline Flash: [Month] [Year]" + the standard disclaimer with `[MRP DATE]` placeholder.

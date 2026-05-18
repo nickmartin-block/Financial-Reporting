@@ -107,8 +107,13 @@ DELTA_COL_THRESHOLDS = {
 # Variance columns whose values should be reformatted to the 1-decimal-within-±10 rule.
 # Rule: |magnitude| ≤ 10 → 1 decimal (9.5%, $9.5M, +5.8 pts).
 #       |magnitude| > 10 → integer       (215%, $14M, +22 pts).
-# YoY columns are NOT reformatted — they follow their own convention from the sheet.
-VARIANCE_COLS_FOR_REFORMAT = (2, 3, 4)
+# Applies to all variance and YoY columns — matches the published Flash convention
+# (e.g. "23%" not "22.6%" for YoY when magnitude > 10).
+VARIANCE_COLS_FOR_REFORMAT = (2, 3, 4, 5, 6)
+
+# Row that is itself a percent metric whose Actual (col 1) follows the same ±10 rule
+# as variance columns. (R40 actual: "50.1%" → "50%".)
+PCT_ACTUAL_ROWS = {27}
 
 GREEN = {"red": 0.0, "green": 0.48, "blue": 0.2}
 RED = {"red": 0.8, "green": 0.0, "blue": 0.0}
@@ -462,6 +467,8 @@ def build_values_requests(
                 continue
             value = get_sheet_value(sheet, r, sheet_col)
             if doc_col in VARIANCE_COLS_FOR_REFORMAT:
+                value = reformat_variance(value)
+            elif doc_col == 1 and r in PCT_ACTUAL_ROWS:
                 value = reformat_variance(value)
             reqs = build_cell_value_requests(cells[doc_col], value, tab_id, bold=is_bold)
             if reqs:

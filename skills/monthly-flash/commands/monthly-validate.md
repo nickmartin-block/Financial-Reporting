@@ -16,7 +16,7 @@ metadata:
 
 Your job: confirm every number in the published Doc matches the validation copy in `MRP Charts & Tables` (the sheet that `/flash-data` populated from BDM + Snowflake). Flag every mismatch. Do not write to the Doc. Do not fix errors.
 
-**Dependencies:** Load `~/Corporate-Financial-Reporting/skills/monthly-flash/skills/financial-reporting.md` for formatting standards and rounding rules.
+**Dependencies:** Load `~/skills/monthly-flash/skills/financial-reporting.md` for formatting standards and rounding rules.
 
 ---
 

@@ -22,8 +22,8 @@ metadata:
 Build the data layer for the Monthly Flash. Pulls all metrics from BDM + Snowflake, runs derivations, writes to the brand reporting model.
 
 **Dependencies:**
-- `~/Corporate-Financial-Reporting/skills/monthly-flash/flash-data/skills/flash-data-sourcing.md` — every BDM metric and Snowflake query mapped to each row
-- `~/Corporate-Financial-Reporting/skills/monthly-flash/flash-data/helpers/flash_data.py` — Python helper for derivations + formatting
+- `~/skills/monthly-flash/flash-data/skills/flash-data-sourcing.md` — every BDM metric and Snowflake query mapped to each row
+- `~/skills/monthly-flash/flash-data/helpers/flash_data.py` — Python helper for derivations + formatting
 
 ---
 
@@ -36,7 +36,7 @@ Build the data layer for the Monthly Flash. Pulls all metrics from BDM + Snowfla
 | Flash table range (monthly) | `L400:S427` (28 rows × 8 cols) — single-month values |
 | Flash table range (quarterly) | `T400:Y427` (28 rows × 6 cols, labels in col L) — QTD/full-quarter sums |
 | Standardized P&L range | `L432:R468` (37 rows × 7 cols) |
-| Helper script | `~/Corporate-Financial-Reporting/skills/monthly-flash/flash-data/helpers/flash_data.py` |
+| Helper script | `~/skills/monthly-flash/flash-data/helpers/flash_data.py` |
 
 **Mode selection:** auto-detect from period.
 - Quarter-end months (Mar, Jun, Sep, Dec) → **quarterly** mode → write to `T400:Y427`
@@ -108,7 +108,7 @@ echo '<raw dict as JSON>' > /tmp/flash_raw_{month}.json
 ## Step 3 — Run derivation helper
 
 ```bash
-python3 ~/Corporate-Financial-Reporting/skills/monthly-flash/flash-data/helpers/flash_data.py \
+python3 ~/skills/monthly-flash/flash-data/helpers/flash_data.py \
   --input /tmp/flash_raw_{month}.json \
   --period "{Mon'YY}" \
   --output /tmp/flash_out_{month}.json

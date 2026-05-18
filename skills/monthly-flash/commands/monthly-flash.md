@@ -19,9 +19,9 @@ metadata:
 Generate, publish, and validate the monthly flash report in one pass. Data is sourced from BDM + Snowflake via `/flash-data` and written into a "validation copy" in the brand reporting model (`MRP Charts & Tables`), then read by the narrative + Doc table populator. The target Doc is supplied as a URL argument so the same skill works for any month + any Doc.
 
 **Dependencies:**
-- `~/Corporate-Financial-Reporting/skills/monthly-flash/flash-data/commands/flash-data.md` — Step 1 invokes this
-- `~/Corporate-Financial-Reporting/skills/monthly-flash/flash-data/skills/flash-data-sourcing.md` — source-of-truth mapping
-- `~/Corporate-Financial-Reporting/skills/monthly-flash/skills/financial-reporting.md` — global formatting recipe
+- `~/skills/monthly-flash/flash-data/commands/flash-data.md` — Step 1 invokes this
+- `~/skills/monthly-flash/flash-data/skills/flash-data-sourcing.md` — source-of-truth mapping
+- `~/skills/monthly-flash/skills/financial-reporting.md` — global formatting recipe
 
 **Scope:** v2.0 supports both **monthly** (intra-quarter: Jan, Feb, Apr, May, Jul, Aug, Oct, Nov) and **quarterly** (quarter-end: Mar, Jun, Sep, Dec) modes. Mode auto-detects from the report period. Quarterly mode reads the QTD view at `MRP Charts & Tables!T400:Y427` and uses Q1/Q2/Q3/Q4 narrative labels.
 
@@ -214,79 +214,37 @@ The Outlook scenario depends on the report quarter: Q1 → Q1OL, Q2 → Q2OL, Q3
 
 ## Step 4 — Generate the flash narrative
 
-Determine report month and year from the period header (row 0, col 1 in L400:S427 — e.g., `Apr'26` → April 2026, prior month = March 2026).
+Invoke `build_narrative.py` directly. The script applies the full Flash convention: Q2OL (or active OL) as the primary comparison anchor for all metric lines, AP supplementally on Adj OpEx + Rule of 40, V/A/F driver attribution with the materiality threshold + Corp-context flag, Block Variable Profit and GAAP Operating Income lines, brand bridge bullet, and the ±10 precision rule on every variance/YoY/pts cell.
 
-Pull driver attribution from `raw_derived` (in `/tmp/flash_out_{month}.json`) for the V/A/F commentary. Use these thresholds:
-
-- **Driver inclusion:** abs(line item Δ vs OL) ≥ $2M OR ≥ 5% of bucket total. Rank by abs Δ desc. Top 2-3 per bucket. Use discretion on what's notable — sometimes the largest 3 are all small and noise, in which case mention 1-2 or skip.
-- **Corp-context flag:** bucket-level variance ≥ $20M abs OR ≥ 10% vs OL → append "**Corp to include context.**" (this phrase gets red text via Step 5d post-insert).
-
-### Monthly narrative structure
-
-Every **bold label** below must be bold in the output. Apply all formatting from the financial-reporting recipe.
-
-```
-# Block Topline Flash: [Full Month] [Full Year]
-
-*This flash report provides a preliminary view of month-end close results, with figures subject to further review and potential adjustment. This streamlined report includes minimal commentary, as a more comprehensive analysis of underlying drivers will be provided in the* ***Monthly Management Reporting Pack scheduled for [MRP DATE]***.
-
-*Please note that the flash topline aligns with our externally reported guidelines, which include Cash App Pay Gross Profit within Cash App excluding Commerce. All comparisons reference [Year] Annual Plan unless otherwise noted. Variances in charts are not color coded for amounts within +/- 1%, $0.5M, or YoY comparisons.*
-
-## [Full Month] Summary
-
-**Block gross profit** was [Actual] in [Month], growing [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]) and landing [vs AP $] ([vs AP %]) vs. AP ([CA contribution] from Cash App, [SQ contribution] from Square, and [Other contribution] from Other Brands).
-
-- **Cash App** gross profit for [Month] was [Actual], growing [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]) and landing [vs AP $] or [vs AP %] above AP. Outperformance vs. AP: [positive sub-products sorted by $ desc], partially offset by [negative sub-products].
-    - **Commerce GMV** was [Actual], [vs AP $] ([vs AP %]) vs. AP and [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]).
-    - **Cash App Actives** landed at [Actual], [vs AP $] below AP, growing [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]).
-    - **Cash App Inflows per Active** were [Actual], [vs AP $] ([vs AP %]) vs. AP and [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]).
-- **Square** gross profit for [Month] was [Actual], growing [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]) and landing [vs AP $] or [vs AP %] vs. AP. Outperformance vs. AP: [positive sub-products sorted by $ desc], partially offset by [negative sub-products].
-    - **Global GPV** was [Actual], [vs AP $] ([vs AP %]) vs. AP and [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]).
-    - **US GPV** was [Actual], [vs AP $] ([vs AP %]) vs. AP and [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]).
-    - **INTL GPV** was [Actual], [vs AP $] ([vs AP %]) vs. AP and [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]).
-- **TIDAL** gross profit for [Month] was [Actual], [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]) and landed [vs AP $] or [vs AP %] vs. AP.
-- **Proto** gross profit for [Month] was [Actual], and landed [vs AP $] vs. AP.
-
-**Adjusted Opex** for [Month] was [Actual], [vs OL $] ([vs OL %]) vs. [OL scenario] and [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]).
-
-- **Variable costs** were [Actual] ([YoY]% YoY), [vs OL $] ([vs OL %]) vs. [OL scenario]. Top drivers: [driver 1 name +/- $X (X%)], [driver 2 name +/- $X (X%)], [driver 3 name if material]. [**Corp to include context.** if bucket variance ≥ $20M OR ≥ 10%]
-- **Acquisition costs** were [Actual] ([YoY]% YoY), [vs OL $] ([vs OL %]) vs. [OL scenario]. Top drivers: [driver 1], [driver 2], [driver 3 if material]. [**Corp to include context.** if material]
-- **Fixed costs** were [Actual] ([YoY]% YoY), [vs OL $] ([vs OL %]) vs. [OL scenario]. Top drivers: [driver 1], [driver 2], [driver 3 if material]. [**Corp to include context.** if material]
-
-**Adjusted Operating Income** landed at [Actual] in [Month], [vs AP $] ([vs AP %]) vs. AP and [YoY]% YoY ([Prior-mo YoY]% in [Prior Month]).
-
-**[Month] Rule of 40** was [Actual], [vs AP pts] above AP and [YoY pts] YoY ([Prior-mo YoY pts] in [Prior Month]).
+```bash
+python3 ~/skills/monthly-flash/flash-data/helpers/build_narrative.py \
+  --packet /tmp/flash_out_{period}.json \
+  --period "{Mon'YY}" \
+  --ol-label "{OL scenario}" \
+  --mode {monthly|quarterly} \
+  --output ~/Desktop/Nick's\ Cursor/Monthly\ Reporting/monthly_flash_YYYY_MM.md
 ```
 
-### Value formatting rules
+Args:
+- `--packet` — JSON packet emitted by `/flash-data` in Step 2 (must exist).
+- `--period` — e.g. `Apr'26`. Drives the H1 title and month-label substitutions.
+- `--ol-label` — e.g. `Q2OL`. For Q1 use `AP` (no Q1OL — AP is Q1's plan).
+- `--mode` — `monthly` for intra-quarter months, `quarterly` for Mar/Jun/Sep/Dec. `auto` lets the script detect.
 
-- Use values from the formatted table (`flash_table_formatted` + `pnl_table_formatted`) — they already match Flash convention
-- Signs: `+` for positive variances, `-` for negative. Parentheses in source = negative in text (e.g., `($56M)` → `-$56M`)
-- "nm" in YoY → use it as-is (the variance is too large to be meaningful)
-- `[MRP DATE]` → placeholder; do not fill in
+The script handles everything the narrative needs — do not edit its output. If a driver attribution call-out looks off or a Corp-context flag fires incorrectly, fix in `build_narrative.py` (thresholds, leaf lists) or `flash_data.py` (raw inputs), not by hand-editing the MD.
 
-### Sub-product outperformance lines
+### Thresholds (encoded in `build_narrative.py`)
 
-For Cash App and Square, list sub-products by AP $ delta descending (positive first, then "partially offset by" negatives). Omit sub-products with zero or negligible delta.
+- **Driver inclusion:** abs(line item Δ vs OL) ≥ $2M OR ≥ 5% of bucket total. Top 2-3 per bucket, ranked by abs Δ desc.
+- **Corp-context flag:** bucket-level variance ≥ $20M abs OR ≥ 10% vs OL → appends `**Corp to include context.**` (red bold via Step 6h).
+- **±10 precision rule:** |magnitude| ≤ 10 → 1 decimal; > 10 → integer. Applied to every variance/YoY/pts value.
 
-### Other Brands bridge
+### Comparison anchor (matches Flash convention)
 
-Other Brands contribution = TIDAL vs AP $ + Proto vs AP $.
-
-### Driver commentary construction (V/A/F buckets)
-
-For each bucket (Variable / Acquisition / Fixed), pull line-item deltas from `raw_derived`:
-
-1. Compute `(line_item_actual - line_item_ol)` for every leaf line item in the bucket
-2. Rank by absolute delta, descending
-3. Filter: only keep line items where `abs(delta) >= 2,000,000` OR `abs(delta) / bucket_total >= 0.05`
-4. Take top 2-3 from the filtered list
-5. Format each as: `[line item name] [+/-$X.XM] ([+/-X.X%])`
-6. Compose the bullet: "Top drivers: [d1], [d2]" or "Top drivers: [d1], [d2], partially offset by [d3]" if d3 is opposite sign
-
-If no line items pass the filter, drop the "Top drivers" clause entirely — just report the bucket total + variance.
-
-If `abs(bucket_delta) >= 20,000,000` OR `abs(bucket_delta) / bucket_total >= 0.10`, append " **Corp to include context.**" (note the leading space and the bold marker — this phrase gets red-colored in Step 5d).
+- **Primary anchor:** active OL scenario for Q2/Q3/Q4 (e.g. Q2OL); AP for Q1.
+- **Supplementary AP mention** on Adj OpEx (`-$XM below AP`) and Rule of 40 (`+X pts above AP`).
+- **Brand bridge** on the Block GP line uses OL deltas (Cash App + Square + Other Brands sum to Block GP vs OL).
+- **Sub-product outperformance** lines for Cash App / Square rank sub-products by OL $ delta (positive first, then "partially offset by" negatives).
 
 ---
 
@@ -382,13 +340,13 @@ cd ~/skills/gdrive && uv run gdrive-cli.py sheets read \
 
 # 2. Read doc, run populator (values pass)
 cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID} --include-tabs > /tmp/flash_doc.json
-python3 ~/Corporate-Financial-Reporting/skills/monthly-flash/flash-data/helpers/populate_flash_table.py \
+python3 ~/skills/monthly-flash/flash-data/helpers/populate_flash_table.py \
     /tmp/flash_sheet.json /tmp/flash_doc.json {TAB_ID} --pass values --mode {mode} \
     | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
 
 # 3. Re-read doc, run populator (colors pass — needs fresh indices)
 cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID} --include-tabs > /tmp/flash_doc_v2.json
-python3 ~/Corporate-Financial-Reporting/skills/monthly-flash/flash-data/helpers/populate_flash_table.py \
+python3 ~/skills/monthly-flash/flash-data/helpers/populate_flash_table.py \
     /tmp/flash_sheet.json /tmp/flash_doc_v2.json {TAB_ID} --pass colors --mode {mode} \
     | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
 ```
@@ -417,7 +375,7 @@ Read back the doc structure and confirm:
 
 ## Step 7 — Validate
 
-Run `~/Corporate-Financial-Reporting/skills/monthly-flash/commands/monthly-validate.md`.
+Run `~/skills/monthly-flash/commands/monthly-validate.md`.
 
 Execute its Steps 1–7. The validation re-reads the populated ranges (`L400:S427` + `L432:R468`) and the published Doc, compares every metric value, and saves a validation report to:
 
