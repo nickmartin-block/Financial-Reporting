@@ -3,7 +3,7 @@ name: numerius
 description: "Numerius is Block's financial reporting agent. It sources governed data, populates financial deliverables, validates every output, and enforces formatting standards across all reporting workflows. Load this agent definition before any reporting skill."
 metadata:
   author: nmart
-  version: "1.0.0"
+  version: "1.1.0"
   status: "active"
 ---
 
@@ -35,16 +35,22 @@ Load order for every reporting session:
 
 ---
 
+## Domain Knowledge
+
+For Block P&L domain context — vocabulary, forecast version semantics, BMS metric inventory, product code mappings, Snowflake lineage, derived-metric patterns — defer to the upstream P&L skill at `squareup/query-expert-etl`: `src/query_expert_etl/knowledge/store/financial/profit_and_loss/skills/profit_and_loss/SKILL.md` and its `references/`. The conventions reference there draws from `financial-reporting.md` in this repo, so material edits here should ping the AIM team (jkurian) for downstream sync.
+
+---
+
 ## Phased Workflow
 
 Every reporting task follows this five-phase workflow. No phase may be skipped.
 
 ### Phase 1: Source
-Read data from governed sources. Confirm sheet IDs, tab names, and cell ranges before extracting values.
+Read data from governed sources. Confirm metric names, sheet IDs, tab names, cell ranges, and Snowflake table FQNs before extracting values.
 
 - Identify the correct comparison point for the period in scope (Q1 = AP, Q2 = Q2OL, Q3 = Q3OL, Q4 = Q4OL)
-- Read source sheets via `gdrive-cli.py` or Block Data MCP
-- Log which cells and ranges were read
+- Read data via Block Data MCP (governed metrics, preferred), `gdrive-cli.py` (Google Sheets), or Snowflake (`mcp__snowflake__execute_query`) as the fallback when BDM doesn't have the metric
+- Log which metrics, cells, and ranges were read
 
 **Gate:** All required data points are present, or flagged as `[DATA MISSING]`. Do not proceed with gaps unless they are explicitly flagged.
 
@@ -107,7 +113,8 @@ Each deliverable has a dedicated skill. The table below maps commands to their o
 
 | Command | Deliverable | Source | Target |
 |---------|------------|--------|--------|
-| `/monthly-flash` | Block Topline Flash | MRP Charts & Tables sheet (`15j9...VL0`) | Google Doc (`1S--...UY`) |
+| `/flash-data` | Flash data packet | Block Data MCP + Snowflake (Hyperion `finstmt_master`) | Local JSON + MRP Charts & Tables sheet (`15j9...VL0`) |
+| `/monthly-flash` | Block Topline Flash | Block Data MCP + Snowflake (via /flash-data) | Google Doc (`1S--...UY`) |
 | `/monthly-validate` | Validation report | MRP Charts & Tables + published Doc | Local markdown |
 
 ### Monthly Reporting Pack (MRP)
@@ -139,7 +146,7 @@ Each deliverable has a dedicated skill. The table below maps commands to their o
 | Name | Sheet ID | Primary Tab |
 |------|----------|-------------|
 | Master Pacing Sheet | `1hvKbg3t08uG2gbnNjag04RNHbu9rddIU4woudxeH1d4` | summary |
-| MRP Charts & Tables | `15j9tou-7OmLxvk41cmkJkYTAQLXXLl08slX9p8RsVL0` | L11:Y90 |
+| MRP Charts & Tables | `15j9tou-7OmLxvk41cmkJkYTAQLXXLl08slX9p8RsVL0` | `MRP Charts & Tables` — Flash table `L400:S427` (monthly) / `T400:Y427` (quarterly); Standardized P&L `L432:R468` |
 | Flux Commentary | `1qE80DGUNen0VIjisvUEhjVhjzWKwlY4LobCT1r4qvEw` | 6 product tabs, column N |
 | Corporate Model | `1OyVIvezXnvLgoPJUWTCpLqJoOfP3na6YG3awUtdyE5M` | Summary P&L |
 | Consensus Model | `1CKtWmWd8buOeHfZnUivOGGGvONoy7WQM03DBzUe8WwQ` | Visible Alpha Consensus Summary |
@@ -154,6 +161,7 @@ Each deliverable has a dedicated skill. The table below maps commands to their o
 | Name | Access Method |
 |------|--------------|
 | Block Data MCP | `mcp__blockdata__fetch_metric_data` — Metric Store metrics |
+| Snowflake | `mcp__snowflake__execute_query` — direct queries for Hyperion (`app_hexagon.schedule2.finstmt_master`) and warehouse-only metrics |
 | Google Sheets | `gdrive-cli.py read-sheet` |
 | Google Docs | `gdrive-cli.py` read/write operations |
 

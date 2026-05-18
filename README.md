@@ -25,12 +25,13 @@ The Tuesday leadership share. Emoji-coded performance narrative with 5 formatted
 
 ### Monthly Topline Flash — `automated`
 
-Preliminary month-end close results. 21 metrics across gross profit, volume, and profitability — all validated against the MRP Charts & Tables sheet (106 values checked). Adapts format for intra-quarter months vs. quarter-end.
+Preliminary month-end close results. 21 metrics across gross profit, volume, and profitability — sourced from Block Data MCP and Snowflake (Hyperion `finstmt_master`), populated to the MRP Charts & Tables validation sheet, and validated cell-by-cell against the published Doc (106 values checked). Adapts format for intra-quarter months vs. quarter-end.
 
 | Command | What it does |
 |---------|-------------|
-| `/monthly-flash` | End-to-end: sheet read → narrative → publish → validate |
-| `/monthly-validate` | Metric-by-metric validation of published doc against source |
+| `/flash-data` | Fetch metrics from BDM + Snowflake → populate MRP Charts & Tables validation sheet + emit JSON packet |
+| `/monthly-flash` | End-to-end: data fetch → narrative → publish → validate |
+| `/monthly-validate` | Metric-by-metric validation of published doc against validation sheet |
 
 ### Monthly Management Reporting Pack — `preliminary`
 
@@ -68,7 +69,8 @@ Corporate-Financial-Reporting/
 │   │
 │   ├── monthly-flash/               Monthly Topline Flash
 │   │   ├── commands/                  /monthly-flash, /monthly-validate
-│   │   └── skills/                    Formatting recipe (inherited)
+│   │   ├── skills/                    Formatting recipe (inherited)
+│   │   └── flash-data/                /flash-data command, sourcing skill, Python helpers
 │   │
 │   ├── monthly-reporting-pack/      Monthly Management Reporting Pack
 │   │   ├── commands/                  /mrp, /mrp-data, /mrp-validate
@@ -90,7 +92,8 @@ All skills inherit from the two root-level governing documents and share:
 
 - **`financial-reporting.md`** — Formatting recipe: rounding, signs, comparison framework, product names, terminology, deviation handling
 - **`gdrive-cli.py`** — CLI tool for Google Sheets, Docs, and Slides operations
-- **Block Data MCP** — Governed metric access via the Block Metric Store
+- **Block Data MCP** — Governed metric access via the Block Metric Store (preferred for any metric BMS publishes)
+- **Snowflake** — Direct query access for Hyperion (`app_hexagon.schedule2.finstmt_master`) and warehouse-only metrics; fallback when BDM doesn't have the metric
 - **Validation pattern** — Every deliverable gets a post-publish validation pass: independent re-read of source data, normalize + compare with rounding tolerance, PASS/FAIL report
 
 ### 5-phase workflow

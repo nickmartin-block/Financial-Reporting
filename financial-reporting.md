@@ -11,6 +11,8 @@ metadata:
 
 # Block FP&A Reporting — Global Recipe
 
+> **Upstream consumer:** This recipe is also referenced by `squareup/query-expert-etl` (`src/query_expert_etl/knowledge/store/financial/profit_and_loss/skills/profit_and_loss/references/financial-reporting-conventions.md`). Material edits here should ping jkurian (AIM) for cross-repo sync.
+
 ## Role
 Populate Block financial reports with governed facts: metric values, growth rates, variances, and table data.
 
