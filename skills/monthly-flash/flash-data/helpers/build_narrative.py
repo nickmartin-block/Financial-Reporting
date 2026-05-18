@@ -20,7 +20,6 @@ import argparse
 import json
 import os
 import sys
-from datetime import date
 from typing import Any
 
 # Shared formatting helper — keep precision rule + table populator in sync.
@@ -196,22 +195,6 @@ def fmt_driver_pct(p: float) -> str:
     return f"{sign}{_half_up(abs_pct)}%"
 
 
-def force_signed(s: str) -> str:
-    """Force an explicit + prefix on a positive variance/rate (e.g., '22.6%' → '+22.6%').
-    Leaves '--' / 'nm' / empty alone. Used on YoY rates which the sheet emits as positive
-    bare numbers but Flash format wants signed.
-    """
-    s = s.strip()
-    if not s or s in ("--", "nm", "N/A", "n/a", "NA"):
-        return s
-    if s.startswith(("+", "-", "(")):
-        # parens means negative → convert to -X
-        if s.startswith("(") and s.endswith(")"):
-            return "-" + s[1:-1]
-        return s
-    return "+" + s
-
-
 def margin_pct(numerator: float | None, denominator: float | None) -> str:
     """Compute margin as numerator/denominator, format per ±10 rule. Returns '' if undefined."""
     if numerator is None or denominator in (None, 0):
@@ -315,16 +298,7 @@ def bucket_commentary(bucket_name: str, raw: dict, actual_key: str, ol_key: str,
     return "- " + headline
 
 
-def format_pct(v: float | None, *, signed: bool = False) -> str:
-    if v is None:
-        return ""
-    pct = v * 100
-    if signed:
-        return f"{'+' if pct >= 0 else '-'}{abs(pct):.1f}%"
-    return f"{abs(pct):.1f}%" + ("" if pct >= 0 else " (negative)")
-
-
-def build_narrative(packet: dict, period: str, ol_label: str, ol_year: int, mode: str = "monthly") -> str:
+def build_narrative(packet: dict, period: str, ol_label: str, mode: str = "monthly") -> str:
     """Construct the full markdown narrative.
     mode: "monthly" — uses month name + prior-month YoY parentheticals (M-S sheet view).
           "quarterly" — uses "Q1/Q2/Q3/Q4" labels + no prior-month YoY (T-Y sheet view).
@@ -483,16 +457,7 @@ def build_narrative(packet: dict, period: str, ol_label: str, ol_year: int, mode
         gaap_oi_line = ""
 
     # AP-supplementary phrasing for Adj Opex (e.g. "and -$117M below AP") and R40
-    adj_opex_ap_delta_raw = _delta("adj_opex", "ap")  # may need different key — fallback below
-    if adj_opex_ap_delta_raw == 0 and raw.get("adj_opex_ap") is None:
-        # Adj Opex AP may not exist directly; derive from GP - AOI = Adj Opex
-        gp_ap = raw.get("block_gp_ap")
-        oi_ap = raw.get("adj_oi_ap")
-        if gp_ap is not None and oi_ap is not None:
-            adj_opex_ap = gp_ap - oi_ap
-            adj_opex_actual = raw.get("adj_opex_actual")
-            if adj_opex_actual is not None:
-                adj_opex_ap_delta_raw = adj_opex_actual - adj_opex_ap
+    adj_opex_ap_delta_raw = _delta("adj_opex", "ap")
     adj_opex_ap_phrase = ""
     if adj_opex_ap_delta_raw:
         direction = "below" if adj_opex_ap_delta_raw < 0 else "above"
@@ -577,11 +542,10 @@ def main():
     with open(args.packet) as f:
         packet = json.load(f)
 
-    _, _, mnum, year = parse_period(args.period)
-    ol_year = args.ol_year or year
+    _, _, mnum, _ = parse_period(args.period)
     mode = detect_mode(mnum, override=None if args.mode == "auto" else args.mode)
 
-    md = build_narrative(packet, args.period, args.ol_label, ol_year, mode=mode)
+    md = build_narrative(packet, args.period, args.ol_label, mode=mode)
 
     with open(args.output, "w") as f:
         f.write(md)

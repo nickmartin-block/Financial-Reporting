@@ -32,7 +32,7 @@ Read each workflow's skill and command files (listed in the workflow registry). 
 |----------|-------|---------|-------------------|
 | `/weekly-summary` | Step 2 (read pacing sheet) + Step 3 (search Slack) | Sequential | Independent data sources — sheet data and Slack messages have no dependency |
 | `/dashboard-refresh` | Step 2 (read pacing sheet) + Step 8 (extract Innercore commentary) | Sequential | Independent reads — pacing data and commentary are separate sources |
-| `/monthly-flash` | Step 2 (read sheet) is the only data read | N/A | Single source — no parallelization opportunity in the read phase |
+| `/monthly-flash` | Step 2 (`/flash-data` runs N independent BDM + Snowflake + Hyperion queries) | Sequential within `/flash-data` | v2.0 fan-out: many BDM `fetch_metric_data` calls + Snowflake direct queries are independent and batchable. Largest latency win is parallelizing inside `/flash-data` itself. |
 
 **Output format per finding:**
 
@@ -61,8 +61,8 @@ L1 | [Workflow] | Steps [X] + [Y] are sequential but independent
 |----------|--------|------------|-------|
 | `/weekly-summary` | Pacing Sheet `1hvKbg3t...` | 2 | Step 2 (generate), Step 6 validate (re-reads) |
 | `/weekly-summary` | Doc `1FU4In29v...` | 3+ | Step 5.5a (find tab), after 5.5b (re-read for commentary insertion), after 5.5d (re-read for formatting) |
-| `/monthly-flash` | MRP Charts `15j9tou-...` | 2 | Step 2 (generate), Step 6 validate (re-reads) |
-| `/monthly-flash` | Doc `1S--3vA6o...` | 2+ | Step 5a (clear), Step 5e (verify), Step 6 validate (re-reads) |
+| `/monthly-flash` | MRP Charts `15j9tou-...` | 2-3 | Step 2 (`/flash-data` writes), Step 3 (read populated ranges), Step 7 validate (re-reads) |
+| `/monthly-flash` | Doc (passed as URL arg in v2.0) | 3+ | Step 6b/c (delete + insert narrative), 6i values-pass + colors-pass re-reads, Step 7 validate (re-reads) |
 | `/dashboard-refresh` | Pacing Sheet `1hvKbg3t...` | 2 | Step 2 (skill reads), Step 11 (validate.py re-reads) |
 
 **Evaluation criteria:**
@@ -174,7 +174,7 @@ L4 | [Workflow] | Dependency chain depth: [N]
 |----------|-------|-----------|-------|
 | `/weekly-summary` | 8 | 5 (5.5a-e) | 13 |
 | `/dashboard-refresh` | 13 | 0 | 13 |
-| `/monthly-flash` | 7 | 5 (5a-e) | 12 |
+| `/monthly-flash` | 8 | 10 (6a-6j) | 18 |
 
 **Output format:**
 

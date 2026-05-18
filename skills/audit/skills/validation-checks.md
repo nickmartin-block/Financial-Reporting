@@ -304,7 +304,7 @@ V7 | Data Gap Inventory — [N] total gaps across [N] workflows
 | `feedback_square_gp_before_gpv.md` | Lead Square section with GP, then GPV | weekly-summary Step 4 template |
 | `feedback_emoji_spacing.md` | Space between emoji and metric name | weekly-summary Step 4 formatting rules |
 | `feedback_dashboard_tues_anchor.md` | Dashboard deltas anchor to Tuesday Innercore share (col 28) | dashboard-refresh Step 4, Step 7 |
-| `feedback_opex_gaap_nongaap.md` | Commentary uses Non-GAAP V/A/F | monthly-flash template, MRP narrative |
+| `feedback_opex_gaap_nongaap.md` | Flash v2.0 uses GAAP V/A/F (Adj OpEx is separate identity = GP − Adj OI). Confirmed by Nick 2026-05-18 — supersedes prior Non-GAAP guidance. | monthly-flash narrative, MRP narrative (verify convention before launch) |
 | `feedback_mrp_gaps_as_placeholders.md` | Data gaps → red placeholders, not supplements | MRP publishing (future) |
 
 4. For each rule, grep the relevant skill file for evidence the rule is implemented.
