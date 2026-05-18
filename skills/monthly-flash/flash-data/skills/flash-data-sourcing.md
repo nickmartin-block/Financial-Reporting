@@ -13,7 +13,7 @@ For a report month `YYYY-MM`:
 | Anchor | Definition |
 |---|---|
 | `actual` | Report month, scenario=Actual |
-| `ol` | Report month, scenario=current Outlook (Q1→Q1OL, Q2→Q2OL, Q3→Q3OL, Q4→Q4OL) |
+| `ol` | Report month, scenario=current Outlook (Q1→AP — Annual Plan, no Q1OL; Q2→Q2OL, Q3→Q3OL, Q4→Q4OL) |
 | `ap` | Report month, scenario=`{Year} Annual Plan` |
 | `yoy_prior` | Same month, prior year (e.g. Apr'26 → Apr'25), scenario=Actual |
 | `prior_month_actual` | One month back from report month (e.g. Apr'26 → Mar'26), scenario=Actual |

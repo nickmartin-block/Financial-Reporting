@@ -121,7 +121,7 @@ Quarterly mode has no Prior-month YoY — skip that comparison.
 | 26 | Adjusted OI | Adjusted Operating Income |
 | 27 | Rule of 40 | Rule of 40 |
 
-**Cash App sub-products (vs AP $ for outperformance line):**
+**Cash App sub-products (vs OL $ for outperformance line — narrative ranks by OL delta in Q2-Q4):**
 
 | Row | Metric |
 |---|---|
@@ -131,7 +131,7 @@ Quarterly mode has no Prior-month YoY — skip that comparison.
 | 15 | Instant Deposit GP |
 | 16 | Post-Purchase BNPL GP |
 
-**Square sub-products (vs AP $ for outperformance line):**
+**Square sub-products (vs OL $ for outperformance line — narrative ranks by OL delta in Q2-Q4):**
 
 | Row | Metric |
 |---|---|
@@ -185,8 +185,8 @@ For each metric in ground truth, find its label in the doc text and verify each 
 
 ### Also check
 
-- **Sub-product deltas:** Cash App outperformance line lists sub-products with AP $ deltas. Square outperformance line same. Verify each delta.
-- **Brand bridge:** Block GP headline includes contributions from Cash App, Square, and Other Brands. Verify each. Other Brands = TIDAL vs AP $ + Proto vs AP $.
+- **Sub-product deltas:** Cash App outperformance line lists sub-products with OL $ deltas (vs Q2OL / Q3OL / Q4OL for Q2-Q4; vs AP $ only when running Q1). Square outperformance line same. Verify each delta.
+- **Brand bridge:** Block GP headline includes contributions from Cash App, Square, and Other Brands. Verify each — the bridge uses OL deltas (or AP in Q1). Other Brands = TIDAL vs OL $ + Proto vs OL $.
 - **V/A/F driver bullets:** the bucket totals + vs OL deltas in the doc must match Stnd P&L totals. Per-line driver call-outs need not be exhaustively validated, but the bucket-level numbers must.
 
 ### Normalization rules

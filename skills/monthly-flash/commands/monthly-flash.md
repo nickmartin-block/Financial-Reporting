@@ -87,7 +87,7 @@ Invoke `/flash-data --period {period} --mode {mode}` to populate the sheet range
 If `/flash-data` was already run for this period and the packet exists at `/tmp/flash_out_{period}.json`, re-run is optional.
 
 The packet contains:
-- `flash_table_raw` / `flash_table_formatted` — 28×8 (monthly) or 28×7 (quarterly) — same row structure either way
+- `flash_table_raw` / `flash_table_formatted` — 28 rows × 8 cols (label + 7 data cols, identical shape regardless of mode)
 - `pnl_table_raw` / `pnl_table_formatted` — 37 rows × 7 cols (always GAAP OpEx breakdown)
 - `raw_derived` — all derived values (Adj OpEx, R40 components, V/A/F bucket totals, every OpEx line item delta) needed for driver attribution
 
@@ -208,7 +208,7 @@ QTD view has no Prior-month YoY column. Labels still live in col L.
 
 ### Comparison point detection
 
-The Outlook scenario depends on the report quarter: Q1 → Q1OL, Q2 → Q2OL, Q3 → Q3OL, Q4 → Q4OL. Flash-data already wrote the correct scenario into the "vs. OL" columns — narrative just references "Q2OL" (or whichever) per the financial-reporting recipe.
+The Outlook scenario depends on the report quarter: Q1 → AP (no Q1OL — Annual Plan IS Q1's plan), Q2 → Q2OL, Q3 → Q3OL, Q4 → Q4OL. Flash-data already wrote the correct scenario into the "vs. OL" columns — narrative just references "Q2OL" (or whichever) per the financial-reporting recipe.
 
 ---
 
@@ -283,10 +283,12 @@ Fetch the doc, find the H2 "{PeriodLong} Summary" and H2 "Summary Table" paragra
 The narrative MD (from Step 5) includes H1 + disclaimers + H2 markers + body. Strip the prefix (first 8 lines through and including the H2 line + the blank line after it) and pipe only the body to `insert-markdown` at the index of the H2 Summary's `endIndex` (the start of the empty space we just cleared):
 
 ```bash
-tail -n +9 /tmp/flash_narrative_{period}.md \
+tail -n +9 ~/Desktop/Nick\'s\ Cursor/Monthly\ Reporting/monthly_flash_YYYY_MM.md \
   | (cd ~/skills/gdrive && uv run gdrive-cli.py docs insert-markdown {DOC_ID} \
        --tab {TAB_ID} --at-index {h2_summary_end_index} --font Roboto)
 ```
+
+The narrative MD was written to `~/Desktop/Nick's Cursor/Monthly Reporting/monthly_flash_YYYY_MM.md` in Step 4/5 (not `/tmp`). Use the same path.
 
 ### 6d — Bullet nesting fix
 
@@ -404,5 +406,5 @@ Tell Nick:
 |---|---|---|
 | L400:S427 is empty or stale | `/flash-data` didn't run for this month, or wrote to a different period | Re-run Step 1. Check the period header in row 400 col M. |
 | Driver attribution misses obvious lines | Threshold too strict (e.g. all line items under $2M for a small bucket) | Lower threshold in this run, or report top 3 unconditionally. Use discretion. |
-| Red text didn't apply | Phrase string mismatch (extra punctuation / spaces) | Step 5d find-string must match exactly — adjust if narrative text drifted. |
+| Red text didn't apply | Phrase string mismatch (extra punctuation / spaces) | Step 6h find-string must match exactly — adjust if narrative text drifted. |
 | Validation fails on a sub-product GP | Source convention change since flash-data last ran | Re-run /flash-data; if persistent, check flash-data-sourcing.md mapping for the row. |

@@ -39,10 +39,10 @@ Build the data layer for the Monthly Flash. Pulls all metrics from BDM + Snowfla
 | Helper script | `~/skills/monthly-flash/flash-data/helpers/flash_data.py` |
 
 **Mode selection:** auto-detect from period.
-- Quarter-end months (Mar, Jun, Sep, Dec) → **quarterly** mode → write to `T400:Y427`
-- Intra-quarter months → **monthly** mode → write to `L400:S427`
+- Quarter-end months (Mar, Jun, Sep, Dec) → **quarterly** mode → write to `T400:Y427` (QTD-summed values, 6 data cols)
+- Intra-quarter months → **monthly** mode → write to `L400:S427` (single-month values, 7 data cols)
 
-Pass `--mode monthly|quarterly|auto` to override.
+The orchestrator (this command) determines mode from the period; the underlying `flash_data.py` helper currently emits a single 28×8 packet regardless of mode. **Quarterly write path is not yet wired end-to-end** — first Jun'26 run will need to extend the helper to (a) sum each metric across the three months of the quarter and (b) write to `T400:Y427`. Until then, quarterly runs will populate the monthly range instead.
 
 ---
 
@@ -72,7 +72,7 @@ Compute the anchor dates:
 | `prior_month_yoy_anchor` | one month back, one year back (2025-03) |
 | `yoy_prior_prior` | same month, two years back (2024-04) — for R40 YoY delta |
 | `prior_month_yoy_prior_prior` | one month back, two years back (2024-03) — for R40 prior-mo YoY delta |
-| Scenario `ol` label | derived from quarter: Q1→`Q1 Outlook` (or `Q1OL`), Q2→`Q2 Outlook`, etc. |
+| Scenario `ol` label | derived from quarter: Q1→`AP` (Annual Plan — no Q1OL), Q2→`Q2 Outlook`, Q3→`Q3 Outlook`, Q4→`Q4 Outlook`. |
 | Scenario `ap` label | `{Year} Annual Plan` for the report year |
 
 State to user: "Building Flash data for {Month'YY}. OL scenario = {scenario}, AP scenario = {scenario}."
@@ -156,9 +156,10 @@ The sheet stores raw numbers; the display format is applied via `sheets-formatti
 
 | Range | Pattern | Type |
 |---|---|---|
-| Flash table % cols `O402:S426` (skip R40 row) — cols O, Q, R, S | `0.0%;(0.0%)` | PERCENT |
+| Flash table % cols (rows 402-426) — `O402:O426`, `Q402:S426` (NOT col P which is vs. AP $) | `0.0%;(0.0%)` | PERCENT |
 | Flash R40 row pts deltas `O427`, `Q427`, `R427`, `S427` | `+0.0" pts";-0.0" pts";0" pts"` | NUMBER |
 | Flash R40 actual `M427` | `0.0%;(0.0%)` | PERCENT |
+| Flash col P (vs. AP $) rows 402-426 — `P402:P426` | `[>=10000000]$#,##0,,"M";[<=-10000000]($#,##0,,"M");$#,##0.0,,"M"` | CURRENCY |
 | Stnd P&L $ cols `M433:M468`, `N433:N468`, `P433:P468` | `[>=1000000000]$#,##0.00,,,"B";[<=-1000000000]($#,##0.00,,,"B");[>=10000000]$#,##0,,"M";[<=-10000000]($#,##0,,"M");$#,##0.0,,"M";($#,##0.0,,"M")` | CURRENCY |
 | Stnd P&L % cols `O433:O468`, `Q433:Q468`, `R433:R468` | `0.0%;(0.0%)` | PERCENT |
 

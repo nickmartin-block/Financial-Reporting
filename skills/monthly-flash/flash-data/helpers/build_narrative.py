@@ -498,8 +498,10 @@ def build_narrative(packet: dict, period: str, ol_label: str, ol_year: int, mode
         direction = "below" if adj_opex_ap_delta_raw < 0 else "above"
         adj_opex_ap_phrase = f", and {fmt_driver_delta(adj_opex_ap_delta_raw)} {direction} AP"
 
-    # R40 AP-supplementary: read the AP pts directly from flash table col AP_P (e.g. "+16 pts")
+    # R40 AP-supplementary: read the AP pts directly from flash table col AP_P (e.g. "+16 pts").
+    # Direction is sign-aware so the narrative reads correctly when R40 underperforms AP.
     r40_ap_str = v("r40", AP_P)
+    r40_ap_direction = "below" if r40_ap_str.startswith("-") else "above"
 
     # V/A/F bucket commentary
     var_bullet = bucket_commentary("Variable costs", raw, "opex_total_variable_actual",
@@ -554,7 +556,7 @@ def build_narrative(packet: dict, period: str, ol_label: str, ol_year: int, mode
 
 **Adjusted Operating Income** landed at {f("adj_oi", A)} in {period_label}{aoi_margin_phrase}, {variance_phrase(v("adj_oi", OL_P), v("adj_oi", OL_D), ol_label)} and {v("adj_oi", YOY)} YoY{pmyoy_paren("adj_oi")}.
 
-**{period_label} Rule of 40** was {reformat_variance(f("r40", A))}, {variance_phrase(v("r40", OL_P), "", ol_label)}, and {r40_ap_str} above AP ({v("r40", YOY)} YoY{', ' + v("r40", PMYOY) + ' in ' + prior_month if not is_quarterly else ''}).
+**{period_label} Rule of 40** was {reformat_variance(f("r40", A))}, {variance_phrase(v("r40", OL_P), "", ol_label)}, and {r40_ap_str} {r40_ap_direction} AP ({v("r40", YOY)} YoY{', ' + v("r40", PMYOY) + ' in ' + prior_month if not is_quarterly else ''}).
 """
 
     return md
