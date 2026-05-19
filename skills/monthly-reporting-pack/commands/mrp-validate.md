@@ -1,156 +1,110 @@
 ---
 name: mrp-validate
-description: Validate the published MRP Google Doc against the data packet and reference MRP. Compares headline metrics, sub-product GP, and flags discrepancies.
+description: Validate the published MRP Test tab against the JSON data packet (Layer 1) and the manual MRP tab reference (Layer 2). Cell-by-cell comparison for Block P&L Overview + Standardized P&L tables. Reports PASS/FAIL/WARN.
 allowed-tools:
   - Bash(cd ~/skills/gdrive && uv run gdrive-cli.py:*)
+  - Bash(python3:*)
   - Read
   - Write
 metadata:
   author: nmart
-  version: "1.0"
+  version: "2.0"
   status: development
 ---
 
-# MRP Validation
+# MRP Validate
 
-Cross-check the published MRP Google Doc against the data packet JSON and (optionally) the reference MRP. Reports PASS/FAIL for every metric with tolerance thresholds.
+Cell-by-cell validation of the published MRP Test tab. Two layers:
 
-**Dependencies:**
-- Load `~/skills/weekly-reporting/skills/financial-reporting.md` for formatting standards
-- Load `~/skills/monthly-reporting-pack/skills/mrp-data-layer.md` for metric registry
+- **Layer 1 (publish-pipeline check):** Test tab cell ↔ JSON packet value. Catches populator bugs.
+- **Layer 2 (source-mapping check):** Test tab cell ↔ MRP tab manual reference cell. Catches data-source mapping errors that Layer 1 misses.
 
-**Inputs:**
-- Data packet: `~/Desktop/Nick's Cursor/Monthly Reporting Pack/mrp_data_YYYY_MM.json`
-- Published doc: the Google Doc ID from the data packet or user
-- Reference MRP (optional): `1Fusutm1sHO5zNhKR31XWywQaUSeYR2R25Ozmm4PqqnM` (tab `t.ea3bz9hprpol`)
+**Scope (v1):** Test tab Tables 2 (Block P&L Overview, 30×7) and 3 (Stnd P&L Double Click, 45×4). Other tables not validated.
 
 ---
 
-## Step 1 — Load Data Packet
+## Step 1 — Inputs
 
-Read `~/Desktop/Nick's Cursor/Monthly Reporting Pack/mrp_data_YYYY_MM.json`. Extract all metric values.
-
----
-
-## Step 2 — Read Published Doc
-
-Use `cd ~/skills/gdrive && uv run gdrive-cli.py docs get <doc_id>` to read the published Google Doc. Extract all numbers from:
-- Narrative paragraphs (e.g., "$922M", "+28% YoY", "+$38M above AP")
-- Metric inventory bullet items (e.g., "Actual ✓ ($140M)")
+- `DOC_ID` — required (from URL or arg)
+- `TEST_TAB_ID` — default `t.3mz1duijrdf1`
+- `MRP_TAB_ID` — default `t.ea3bz9hprpol` (manual reference)
+- `PACKET_PATH` — default `/tmp/mrp_out_{YYYY_MM}.json` (derive YYYY_MM from packet meta or from period arg)
 
 ---
 
-## Step 3 — Headline Metric Checks
+## Step 2 — Read Test tab + MRP tab
 
-Compare these against the data packet (tolerance: $1M or 0.5 pts):
-
-| Check | Data Packet Field | Expected Format in Doc |
-|-------|-------------------|----------------------|
-| Block GP Actual | `block.gp.actual` | "$922M" |
-| Block GP YoY | `block.gp.yoy_pct` | "+28% YoY" |
-| Block GP vs AP | `block.gp.vs_plan_dollar` | "+$38M above AP" |
-| Cash App GP Actual | `cash_app.gp.actual` | "$601M" |
-| Cash App GP YoY | `cash_app.gp.yoy_pct` | "+38% YoY" |
-| Cash App GP vs AP | `cash_app.gp.vs_plan_dollar` | "+$30M" or "+5.2%" |
-| Square GP Actual | `square.gp.actual` | "$317M" |
-| Square GP YoY | `square.gp.yoy_pct` | "+12% YoY" |
-| Square GP vs AP | `square.gp.vs_plan_dollar` | "+$5.8M" or "+1.9%" |
-| AOI Actual | `block.aoi.actual` | "$231M" or "$231M" |
-| AOI Margin | `block.aoi_margin.actual` | "25%" |
-| Rule of 40 | `block.rule_of_40.actual` | "53%" |
-| Adjusted OpEx | `block.adjusted_opex.actual` | "$691M" |
-| Square GPV Global | `square.global_gpv.actual` | "$19.5B" |
-| Square GPV US | `square.us_gpv.actual` | "$15.2B" |
-| Cash App Actives | `cash_app.actives.actual` | "56.9M" |
-| Inflows per Active | `cash_app.inflows_per_active.actual` | "$541" |
-| Monetization Rate | `cash_app.monetization_rate.actual` | "1.68%" |
-
----
-
-## Step 4 — GPV Acceleration Checks
-
-| Check | Data Packet | Expected in Doc |
-|-------|-------------|-----------------|
-| Global GPV acceleration | `square.gpv_acceleration.global_pts` | "+2.4 pt acceleration" |
-| US GPV acceleration | `square.gpv_acceleration.us_pts` | "+2.2 pt" |
-| INTL GPV acceleration | `square.gpv_acceleration.intl_pts` | "+3.6 pt" |
-
----
-
-## Step 5 — Sub-Product GP Checks
-
-For each sub-product in `cash_app.sub_products` and `square.sub_products`:
-- Check that the actual value appears in the doc (rounded to nearest $M)
-- If PY exists, check YoY % appears
-- If AP exists, check vs AP $ appears
-
-Tolerance: $1M for actuals, 1 pt for percentages.
-
----
-
-## Step 6 — Reference MRP Cross-Check (Optional)
-
-If the reference doc is available, compare key values:
-
-| Category | What to Check |
-|----------|--------------|
-| Block P&L table | Every row: Actual, YoY%, vs AP |
-| Cash App Detail table | Every product: Actual, $ vs AP, % vs AP, YoY% |
-| Square Detail table | Same |
-| Appendix I | OpEx lines: Actual, YoY, vs AP |
-| Appendix II | Sub-product GP: PY, CY, AP, YoY%, vs AP$ |
-
-Known discrepancies to flag but not fail on:
-- GAAP OpEx: MCP aggregate ($1,171M) vs reference ($1,184M) — $13M gap
-- Variable Costs: MCP ($234M) vs reference ($247M) — $13M gap
-- Cash App vs Commerce split: $10M categorization shift (totals match)
-- Business Accounts: Ref $10M vs MCP $4M (product grouping)
-- OpEx CY individual lines: ~3x issue (flag, don't fail)
-
----
-
-## Step 7 — Output Validation Report
-
-Write report to:
-```
-~/Desktop/Nick's Cursor/Monthly Reporting Pack/mrp_validation_YYYY_MM.md
+```bash
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID}
 ```
 
-Format:
+Parse out Tables 2 and 3 from both tabs. Extract cell text into a structured form:
+```python
+{tab_id: {table_idx: [[cell_text per col] per row]}}
+```
+
+---
+
+## Step 3 — Layer 1 validation (Test tab ↔ JSON packet)
+
+For each row in `packet["block_pl"]["rows"]`:
+- Compare `*_formatted` strings to Test tab cell text exactly
+- For numeric mismatches, parse + compare with tolerance: $1M for amounts, 0.5pts for rates
+- Flag missing cells (empty when JSON has a value) and extra cells (non-empty when JSON has `null`/gap)
+
+Same for `packet["stnd_pl"]["rows"]`.
+
+---
+
+## Step 4 — Layer 2 validation (Test tab ↔ MRP tab manual)
+
+For each cell in (Test tab Table 2 ∪ Table 3):
+- Compare to the same cell position in (MRP tab corresponding table)
+- Parse numerics with tolerance ($1M / 0.5pts)
+- Flag deltas
+
+Known WARN-not-FAIL discrepancies (from Flash v2.0 + Mar'26 MRP work):
+- Square sub-product groupings (Banking, SaaS, Hardware basis differences)
+- GAAP OpEx ~$13M gap (MCP aggregate vs reference)
+- People row (headcount) — DATA GAP, always WARN
+
+---
+
+## Step 5 — Output report
+
+Write to `~/Desktop/Nick's Cursor/Monthly Reporting Pack/mrp_validation_{YYYY_MM}.md`:
+
 ```markdown
-# MRP Validation Report — [Month Year]
+# MRP Validation Report — {Month YYYY}
 
 **Date:** YYYY-MM-DD
-**Data Packet:** mrp_data_YYYY_MM.json (version X.X)
-**Published Doc:** [doc URL]
+**Test tab:** {TEST_TAB_ID}
+**MRP tab (reference):** {MRP_TAB_ID}
+**Packet:** {PACKET_PATH}
 
 ## Summary
-- Total checks: XX
-- PASS: XX
-- FAIL: XX
-- WARN: XX (known discrepancies)
+- Table 2 (Block P&L): {pass}/{total} cells PASS, {fail} FAIL, {warn} WARN
+- Table 3 (Stnd P&L): {pass}/{total} cells PASS, {fail} FAIL, {warn} WARN
+- Layer 1 (cell ↔ packet): {summary}
+- Layer 2 (cell ↔ MRP tab): {summary}
 
-## Headline Metrics
-| Check | Expected | Found | Status |
-|-------|----------|-------|--------|
-| ... | ... | ... | ✅/❌/⚠️ |
+## Failures
+| Table | Row | Col | Test value | Expected | Source | Notes |
+|---|---|---|---|---|---|---|
 
-## Sub-Product GP
-| Product | Expected | Found | Status |
-|---------|----------|-------|--------|
+## Warnings (known discrepancies)
+| Table | Row | Col | Test value | MRP tab | Notes |
+|---|---|---|---|---|---|
 
-## Known Discrepancies
-| Issue | Expected | Actual | Notes |
-|-------|----------|--------|-------|
-
-## Failures (if any)
-[Details on any unexpected mismatches]
+## Gaps
+| Table | Row | Cell | Status |
+|---|---|---|---|
 ```
 
-Print the summary to the console:
+Print console summary:
 ```
-=== MRP Validation ===
-Checks: XX total | XX PASS | XX FAIL | XX WARN
-Status: [PASS / FAIL]
-Report saved to: [path]
+=== /mrp-validate ===
+Layer 1: {n_pass}/{n_total} PASS | {n_fail} FAIL | {n_warn} WARN
+Layer 2: {n_pass}/{n_total} PASS | {n_fail} FAIL | {n_warn} WARN
+Report: {path}
 ```
