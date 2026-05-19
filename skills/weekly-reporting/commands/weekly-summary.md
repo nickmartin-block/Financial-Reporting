@@ -2,7 +2,21 @@
 
 Generate a management-ready Block Performance Digest combining pacing metrics with Cash App commentary from Slack. The output has two layers: a **Summary** (comprehensive emoji-coded narrative) and **Overview** sections (plain-text reference detail, with performance tables).
 
-**Dependencies:** Read `~/skills/weekly-reporting/skills/financial-reporting.md` for global formatting standards. Table population, conditional colors, and formatting are handled by Python scripts in `~/skills/weekly-reporting/scripts/` — see Step 5b.
+**Load order (must read in this order before doing anything else):**
+1. `~/Desktop/Nick's Cursor/Corporate-Financial-Reporting/numerius.md` — agent identity, phased workflow, non-negotiable principles (canonical source of truth)
+2. `~/skills/weekly-reporting/skills/financial-reporting.md` — global formatting, rounding, sign conventions, terminology
+
+Numerius's "no driver commentary on your own initiative" principle applies in full. The **sourced commentary** exception is invoked here: this command authorizes commentary synthesis from the Slack sources named below. No other commentary sources may be used.
+
+**Authorized commentary sources for this command (sourced-commentary exception):**
+- `#fpa-ir-planning-reporting` (`C091W2BA04U`) — the canonical channel for weekly pacing context
+- **mjansing** (`U01K3T9BQ21`) — Cash App weekly digest / pacing thread
+- **jerbe** (`U02UQK7N5SB`) — Square weekly execution / pacing narrative
+- Whichever analyst posts the AOI pacing note that week (typically `U051CL4GC2X`)
+
+Paraphrase these sources without attribution. Do NOT pull WoW driver context from anywhere else (other channels, Glean, prior weeks' docs, your own inference from the metric values). When an authorized source has not posted yet for the week, do NOT improvise — flag the gap with `[Cash App WoW driver context pending — digest not yet posted.]` (or the equivalent for Square/AOI) and continue.
+
+Table population, conditional colors, and formatting are handled by Python scripts in `~/skills/weekly-reporting/scripts/` — see Step 5b.
 
 **Template tab requirement:** Nick must create the template tab in the Google Doc before running this command. The template tab contains headings and pre-formatted tables with empty data cells. See weekly-tables.md for template structure details.
 
@@ -164,10 +178,10 @@ Each Overview section includes bulleted fact lines with proper nesting (see temp
 
 *(blank line — ensure a non-bulleted blank paragraph separates Topline from the first bullet)*
 
-- [emoji] **Square gross profit** is expected to land [SQ Month AP delta]% ([SQ Month AP delta $]) [below/above] AP in [Month] and [SQ Q1 AP delta]% ([SQ Q1 AP delta $]) [below/above] in Q1. Square gross profit growth is expected to land at [SQ GP Q1 YoY]% YoY in Q1 ([+/-pacing spread] pts spread on GPV growth).
-- [emoji] **Square Global GPV** In [Month], global GPV is pacing to [Value] ([Global GPV Month YoY]% YoY), [Month AP delta]% [above/below] AP. For the quarter, global GPV is pacing to [Q1 Value] ([Q1 YoY]% YoY), [Q1 AP delta]% [above/below] AP, with growth [+/-X] pts [above/below] consensus. US and International GPV are pacing [above/below/mixed] against AP in [Month]:
+- [emoji] **Square gross profit** is expected to land [SQ Month AP delta]% ([SQ Month AP delta $]) [below/above] AP in [Month] and [SQ Q1 AP delta]% ([SQ Q1 AP delta $]) [below/above] in Q1. Square gross profit growth is expected to land at [SQ GP Q1 YoY]% YoY in Q1 ([pacing spread] pts below GPV growth).
+- [emoji] **Square GPV** In [Month], global GPV is pacing to [Value] ([Global GPV Month YoY]% YoY), [Month AP delta]% [above/below] AP. For the quarter, global GPV is pacing to [Q1 Value] ([Q1 YoY]% YoY), [Q1 AP delta]% [above/below] AP, with growth [+/-X] pts [above/below] consensus. US and International GPV are pacing [above/below/mixed] against AP in [Month]:
     - [emoji] **US GPV** is pacing to [Value] ([YoY]% YoY) in [Month], [AP delta]% [above/below] AP. For the quarter, US GPV is pacing to [Q1 Value] ([Q1 YoY]% YoY), [Q1 AP delta]% [above/below] AP.
-    - [emoji] **International GPV** is pacing to [Value] in [Month] ([YoY]% YoY), [AP delta]% [above/below] AP[; FX caveat if material — see FX rule below].
+    - [emoji] **International GPV** is pacing to [Value] in [Month] ([YoY]% YoY), [AP delta]% [above/below] AP.
 - [emoji] **Cash ex-Commerce** gross profit is pacing [AP delta]% ([AP delta $]) [above/below] AP in [Month], and [YoY]% YoY.
     - [emoji] **Lending vs. Non-Lending (YoY):** Q1 lending gross profit growth is pacing to [Lending Q1 YoY]% YoY with non-lending growth of [Non-Lending Q1 YoY]% YoY.
         - [emoji] **Lending (vs. AP):** Q1 lending gross profit is pacing [Q1 AP delta]% ([Q1 AP delta $]) ahead of/behind AP.
@@ -183,9 +197,7 @@ Each Overview section includes bulleted fact lines with proper nesting (see temp
 
 *(blank line — ensure a non-bulleted blank paragraph separates Proto from Profitability)*
 
-[emoji] **Profitability: Q1 Adjusted Operating Income** is pacing to [AOI Q1 Value] ([margin]% margin), [Guidance delta]% ([Guidance delta $]) [above/below] guidance, [Consensus delta]% ([Consensus delta $]) [above/below] consensus, and [AP delta]% ([AP delta $]) [above/below] AP. As noted above, tariff reimbursement for Square hardware is excluded and represents ~$[X]M of upside to the projection above.
-    - **Conservatism:** [Pull from Nick's AOI Slack thread — e.g., "Pacing retains $X contingency ($Y corp, $Z marketing); assumes marketing lands in line with AP for the quarter."]
-    - **Risks:** [Pull from Nick's AOI Slack thread — e.g., "Proto deal closing in Q1 (net in-line with AP); Borrow ramp slower than expected (~X% of originations vs. Y/Z split expected), partially offset by non-lending GP strength."]
+[emoji] **Profitability: Q1 Adjusted Operating Income** is pacing to [AOI Q1 Value] ([margin]% margin), [Guidance delta]% ([Guidance delta $]) [above/below] guidance, and [Consensus delta]% ([Consensus delta $]) [above/below] consensus. [Synthesize WoW driver context — no attribution. E.g., "The modest decrease WoW ([WoW $]) is driven by topline softness from Cash App and Square due to..."]
 
 ---
 
@@ -241,48 +253,14 @@ For additional details on performance for each brand, please reference the mater
 - Billions: 2 decimals ($1.04B). Millions: whole number if >= $10M ($358M), 1 decimal if < $10M ($4.2M)
 - Use $B format for Block GP (monthly and quarterly) and all GPV figures. Use $M for brand-level GP (Cash, Square, Proto, TIDAL) and AOI.
 - Percentages: 1 decimal if < 10% (7.0%), no decimal if >= 10% (24%). Exception: keep 1 decimal for GPV YoY rates in the 10-15% range where precision matters (e.g., 12.6%).
-- **Rounding precision**: Compute deltas from raw cell values, then round per the rule. Example: $92M / $3,040M = 3.026% → 3.0% (1 decimal, <10%), NOT 3.1%. Round once at display time, never round the inputs.
-- Basis points: space before, ALWAYS with explicit sign on deltas (+4 bps, -4 bps, 30 bps for absolute). Never write "4 bps below" — always "-4 bps below".
+- Basis points: space before (30 bps, +4 bps)
 - Actives: 1 decimal (58.5M)
 - Quarter notation: Q1'26, Q2'26, etc.
 - Always include sign (+/-) on YoY and delta values
 - "above"/"below" based on sign of delta vs forecast
 - **Percentage points (pts):** Use "pts" when expressing the difference between two rates (growth rates, margins, Rule of 40). Use "%" only for deltas computed as (Value - Benchmark) / Benchmark. Example: "growth +0.9 pts above consensus" (two growth rates), NOT "+0.9% above consensus"
-- **Spread phrasing**: When comparing GP YoY growth to GPV YoY growth (or any two rates within a section), use "([+/-X] pts spread on GPV growth)" with explicit sign — sign is GP YoY minus GPV YoY (negative when GP grows slower). Do NOT use "below/above GPV growth" phrasing.
 - Date in title: abbreviated month + day + year (e.g., "Mar 17, 2026")
 - For [MANUAL] placeholders: preserve the placeholder text exactly, including the bracket notation, so Nick can find and fill them
-
-### FX caveat for International GPV
-
-When FX is a material driver of the Intl GPV vs forecast variance, append an inline caveat to the Intl GPV bullet:
-- **If FX explains the full delta** (constant currency in line with forecast): `; FX accounts for all of the outperformance with GPV in constant currency pacing in-line.`
-- **If FX explains part of the delta**: `; FX accounts for ~[X] pts of the outperformance with constant currency pacing in line.`
-- **If FX is not material**: omit the caveat
-
-Source the FX attribution from James Erbe's SQ pacing Slack thread.
-
-### Slack commentary integration
-
-When the FP&A channel `#fpa-ir-planning-reporting` (C091W2BA04U) has dedicated pacing threads on the Tuesday before Innercore share, fold their commentary into the report selectively:
-
-**Where commentary goes:**
-- **AOI** (Nick Martin's "AOI pacing :thread:"): Structured sub-bullets under the Profitability paragraph — `**Conservatism:**` and `**Risks:**`. These are the evergreen sub-bullet labels Nick uses to frame the AOI projection. Pull verbatim language where possible.
-- **International GPV FX caveat** (James Erbe's "SQ pacing narrative :thread:"): Append inline to the Intl GPV bullet per the FX rule above.
-- **Tariff/hardware caveat** (recurring): Keep inline italic in the Square GP bullet ("Pacing excludes potential reimbursement of hardware tariffs..."). Reference back in the Profitability paragraph with "As noted above, tariff reimbursement..." rather than restating.
-
-**Where commentary does NOT go:**
-- Do NOT insert standalone "Driver narrative:" italic paragraphs for Square or Cash. The brand-level Summary bullets and downstream Overview sections already convey the story.
-- Specific brand drivers belong in James Erbe's / Matthew Jansing's underlying decks (linked in the Overview: Gross Profit Performance section) — not duplicated in the digest narrative.
-
-**Style:**
-- No attribution (don't quote names or thread titles)
-- Synthesize, don't copy: condense Slack prose into one or two bullets per section
-- Reference-back: when context repeats across sections, use "As noted above, ..." instead of restating
-
-Slack thread anchors to scan for (search by ts in `#fpa-ir-planning-reporting`):
-- `SQ pacing narrative :thread:` (James Erbe, U02UQK7N5SB)
-- `Cash pacing :thread:` (Matthew Jansing, U01K3T9BQ21)
-- `AOI pacing :thread:` (Nick Martin)
 
 ### Writing style
 
@@ -325,26 +303,6 @@ From the response:
 3. If no template tab exists for today's date → **STOP** and tell Nick to create the template tab first. Do NOT create tabs.
 
 Capture the tab ID.
-
-**Template state — IMPORTANT:**
-
-Inspect the template tab to determine its starting state, then choose the right publish path:
-
-| Template state | Detect by... | Publish path |
-|---|---|---|
-| **Skeleton** — section headings + pre-formatted tables with empty/placeholder cells, no narrative bullets | Bullet count near zero, table cells contain `[DATA]` / blank placeholders | Phase 1 (Python populate) + Phase 2 (insert-markdown for commentary) + Phase 3 (format) — standard pipeline below |
-| **Cloned from prior week** — section headings, populated tables with last week's values, full narrative from last week | Many populated bullets, table cells contain $ amounts, narrative references prior month/week | **Surgical update path** — see below. Do NOT wipe and rebuild. |
-
-**Surgical update path (cloned templates only):**
-
-1. Update narrative text with `replaceAllText` (via batch-update). Use long, unique find strings (full phrases with specific $ amounts) to avoid over-matching. Bundle all replacements into a single batch.
-2. Update each table cell value with cell-targeted `batch-update`: `deleteContentRange` over the cell's current text range, then `insertText` with the new value. Apply in REVERSE index order to avoid index shifts.
-3. Update the date element separately (Docs API can't create new dateElements — delete the chip and insert plain text "M D, YYYY").
-4. Fix any emoji that flipped direction (e.g., metric crossed below ±0.5% threshold) via `replaceAllText`.
-5. **Never** use `deleteContentRange` over the whole tab body and re-insert via `insert-markdown` — this destroys 3-row table headers (Year/Type/Period), black-header/grey-body cell shading, and L0/L1/L2 bullet hierarchy that the cloned template carries from prior week.
-6. **Never** use `insert-markdown` on a cloned template — markdown can't reproduce the multi-row table headers or proper bullet nesting.
-
-After surgical update, audit bold text runs in the doc body. `replaceAllText` inherits the formatting of the start of the matched range, so longer find strings can extend bold over the full sentence. Fix any over-bolded sentences by applying `updateTextStyle` with `bold: false` to everything except the metric name.
 
 ### 5b — Publish (tables + commentary + formatting)
 

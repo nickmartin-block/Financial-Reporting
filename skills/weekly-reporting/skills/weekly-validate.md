@@ -8,7 +8,7 @@ allowed-tools:
   - Write
 metadata:
   author: nmart
-  version: "2.0.0"
+  version: "2.1.0"
   status: active
 ---
 
@@ -135,13 +135,40 @@ Flag format: `❌ | [Table] | [Metric] | [Column] | Doc: [value] | Sheet: [value
 
 ---
 
+## Step 6.5 — Roll-up integrity check
+
+Cell-by-cell sheet→doc comparison only proves the doc reflects what the sheet says. It does NOT catch a sheet that's internally broken (e.g., a brand row drops out of the Block GP sum, a Cash sub-product double-counts, a missing GPV region). Run the roll-up checker against the cached sheet to verify aggregations close:
+
+```bash
+python3 ~/skills/weekly-reporting/scripts/validate_rollups.py /tmp/pacing_sheet_YYYY-MM-DD.json
+```
+
+The script exits 0 on PASS, 1 on FAIL. Capture stdout — it's already markdown-formatted for inclusion in the report.
+
+Checks performed (12 total):
+1. Brand-level GP (Cash + Square + Proto + TIDAL) → Block GP — month and quarter
+2. Cash sub-products (Ex-Commerce + Commerce) → Cash App total — month and quarter
+3. Lending + Non-Lending → Cash Ex-Commerce — month and quarter
+4. Brand Δ vs forecast → Block Δ — month and quarter
+5. Brand WoW → Block WoW — month and quarter
+6. US + Intl GPV → Global GPV — month and quarter
+
+**Tolerance:** ±$2M for brand-level $M roll-ups (absorbs 4-brand display rounding); ±$200M for GPV roll-ups at $20B+ scale (sheet displays GPV at $0.1B precision). Anything outside tolerance is a real discrepancy — investigate before publishing.
+
+If any check FAILs, do NOT mark the overall validation as PASS even if cell-by-cell comparison was clean — the underlying sheet has an aggregation bug that needs to be flagged to the sheet owner.
+
+---
+
 ## Step 7 — Tally results
 
 Count:
-- Total cells compared
+- Total cells compared (Step 6)
 - Cells passed
 - Cells failed
 - Tables matched (expect 5)
+- Roll-up checks passed / failed (Step 6.5, expect 12 passed)
+
+Overall result is PASS only if both cell-level (Step 6) and roll-up (Step 6.5) checks pass.
 
 ---
 
@@ -156,14 +183,20 @@ Save to: `~/Desktop/Nick's Cursor/Weekly Reporting/validation_YYYY-MM-DD.md`
 
 - Tables matched: [N] / 5
 - Cells compared: [N]
-- ✅ Passed: [N]
-- ❌ Failed: [N]
+- ✅ Cell-level passed: [N]
+- ❌ Cell-level failed: [N]
+- ✅ Roll-up checks passed: [N] / 12
+- ❌ Roll-up checks failed: [N]
 
-## Failures
+## Cell-level failures
 
 [List every ❌ line from Step 6, grouped by table]
 
 (If zero failures: "No mismatches found.")
+
+## Roll-up integrity
+
+[Paste markdown output from validate_rollups.py — Step 6.5]
 ```
 
 ---
@@ -171,7 +204,8 @@ Save to: `~/Desktop/Nick's Cursor/Weekly Reporting/validation_YYYY-MM-DD.md`
 ## Step 9 — Report back
 
 Tell Nick:
-- **PASS** (zero failures) or **FAIL** ([N] failures)
+- **PASS** (zero failures across cell-level AND roll-ups) or **FAIL** ([N] failures)
 - Total cells compared
+- Roll-up checks: [N] / 12 passed
 - Any failures with details
 - If PASS → "Data is clean."

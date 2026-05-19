@@ -1638,7 +1638,9 @@ def docs_suggest_edit(doc_id: str, find: str, replace_text: str, tab: str | None
 @click.argument("document_id")
 @click.option("--include-tabs/--no-include-tabs", default=True,
               help="Include content from all tabs (default: true)")
-def docs_get(document_id: str, include_tabs: bool):
+@click.option("--tab", "tab_id", default="",
+              help="Filter output to a specific tab by ID (e.g., t.abc123). Reduces output size dramatically for multi-tab docs.")
+def docs_get(document_id: str, include_tabs: bool, tab_id: str):
     """Get full Google Doc JSON (structure, styles, content)."""
     try:
         docs_service = get_docs_service()
@@ -1646,6 +1648,22 @@ def docs_get(document_id: str, include_tabs: bool):
             documentId=document_id,
             includeTabsContent=include_tabs,
         ).execute()
+        if tab_id:
+            target = _find_tab_by_id(doc.get("tabs", []), tab_id)
+            if not target:
+                all_tabs = _flatten_all_tabs(doc.get("tabs", []))
+                output_json({
+                    "error": f"Tab '{tab_id}' not found",
+                    "available_tabs": [
+                        {"tabId": t.get("tabProperties", {}).get("tabId"),
+                         "title": t.get("tabProperties", {}).get("title")}
+                        for t in all_tabs
+                    ],
+                })
+                sys.exit(1)
+            # Return doc metadata + only the target tab
+            doc["tabs"] = [target]
+            # Strip childTabs from other parent tabs that may have been included
         output_json(doc)
     except Exception as e:
         handle_error(e)

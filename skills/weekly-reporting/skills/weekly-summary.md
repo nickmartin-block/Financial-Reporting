@@ -65,9 +65,11 @@ For each metric, extract:
 **Delta computation rule**: Never compute a delta from rounded or display-formatted numbers. Always use raw cell values from the sheet, or use pre-computed delta columns where they exist (e.g., columns W and X for Cash ex-Commerce GP delta $). Rounding before computing causes mismatches.
 
 Assign an emoji based on vs-forecast delta only:
-- Green circle = delta > +0.5%
-- Yellow circle = delta between -0.5% and +0.5%
-- Red circle = delta < -0.5%
+- Green circle = delta ≥ +0.5%
+- Yellow circle = delta within ±0.45% (i.e., between -0.45% and +0.45%)
+- Red circle = delta ≤ -0.5%
+
+For metrics measured in basis points (monetization rates), compute the proportional delta as `(Pacing − Forecast) / Forecast` and apply the same thresholds.
 
 **Exception — Non-Lending GP YoY:** The "Lending vs. Non-Lending (YoY)" parent bullet uses **non-lending YoY growth rate** for its emoji, not the standard delta vs forecast:
 - Green circle = non-lending YoY > 12%

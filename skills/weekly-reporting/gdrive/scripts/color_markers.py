@@ -1,22 +1,37 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 """
-color_markers.py <doc_id> <tab_id>
+color_markers.py
 
-Finds all «RED»...«/RED» blocks in a Google Doc tab, colors the content red (#ea4335),
-and strips the markers. Processes blocks in reverse document order to preserve index validity.
+Reads a Google Doc JSON (from stdin), finds color marker blocks,
+and outputs batch-update requests JSON (to stdout) that apply colors and strip markers.
 
-Usage:
-    cd ~/skills/gdrive && uv run python3 scripts/color_markers.py <doc_id> <tab_id>
+Supported markers:
+    «RED»...«/RED»       → Red text (#EA4335)   — manual placeholders
+    «BLUE»...«/BLUE»     → Blue text (#4285F4)  — data gaps
+    «GREEN»...«/GREEN»   → Green text (#34A853)  — favorable variance
+    «WARN»...«/WARN»     → Red text (#D93025)   — unfavorable variance
+
+Usage (pipe with gdrive-cli):
+    cd ~/skills/gdrive
+    uv run gdrive-cli.py docs get <doc_id> | uv run scripts/color_markers.py <tab_id> [--colors RED,BLUE] | uv run gdrive-cli.py docs batch-update <doc_id>
+
+Legacy usage (standalone, requires services module):
+    cd ~/skills/gdrive && uv run scripts/color_markers.py <doc_id> <tab_id> --standalone
 """
+import json
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-from services import get_docs_service
-
-OPEN_MARKER = "«RED»"
-CLOSE_MARKER = "«/RED»"
-RED_RGB = {"red": 0.918, "green": 0.263, "blue": 0.208}
+COLOR_DEFS = {
+    "RED":   {"red": 0.918, "green": 0.263, "blue": 0.208},  # #EA4335
+    "BLUE":  {"red": 0.259, "green": 0.522, "blue": 0.957},  # #4285F4
+    "GREEN": {"red": 0.204, "green": 0.659, "blue": 0.325},  # #34A853
+    "WARN":  {"red": 0.851, "green": 0.188, "blue": 0.145},  # #D93025
+}
+DEFAULT_COLORS = list(COLOR_DEFS.keys())
 
 
 def get_tab_content(tabs, tab_id):
@@ -50,28 +65,40 @@ def flatten_text(content):
     return "".join(chars), indices
 
 
-def find_blocks(flat, index_map):
-    """Return list of marker block bounds in document index space."""
+def find_blocks_for_color(flat, index_map, color_name):
+    """Return list of marker block bounds in document index space for a given color."""
+    open_marker = f"\u00ab{color_name}\u00bb"
+    close_marker = f"\u00ab/{color_name}\u00bb"
     blocks = []
     pos = 0
     while True:
-        o = flat.find(OPEN_MARKER, pos)
+        o = flat.find(open_marker, pos)
         if o == -1:
             break
-        c = flat.find(CLOSE_MARKER, o + len(OPEN_MARKER))
+        c = flat.find(close_marker, o + len(open_marker))
         if c == -1:
-            print(f"Warning: unclosed {OPEN_MARKER} at flat position {o}", file=sys.stderr)
+            print(f"Warning: unclosed {open_marker} at flat position {o}", file=sys.stderr)
             break
         blocks.append({
+            "color":         color_name,
             "open_start":    index_map[o],
-            "open_end":      index_map[o + len(OPEN_MARKER) - 1] + 1,
-            "content_start": index_map[o + len(OPEN_MARKER)],
+            "open_end":      index_map[o + len(open_marker) - 1] + 1,
+            "content_start": index_map[o + len(open_marker)],
             "content_end":   index_map[c],
             "close_start":   index_map[c],
-            "close_end":     index_map[c + len(CLOSE_MARKER) - 1] + 1,
+            "close_end":     index_map[c + len(close_marker) - 1] + 1,
         })
-        pos = c + len(CLOSE_MARKER)
+        pos = c + len(close_marker)
     return blocks
+
+
+def find_all_blocks(flat, index_map, colors):
+    """Find all marker blocks across all requested colors, sorted by document position."""
+    all_blocks = []
+    for color_name in colors:
+        all_blocks.extend(find_blocks_for_color(flat, index_map, color_name))
+    all_blocks.sort(key=lambda b: b["open_start"])
+    return all_blocks
 
 
 def build_requests(blocks, tab_id):
@@ -82,13 +109,14 @@ def build_requests(blocks, tab_id):
     """
     requests = []
     for b in reversed(blocks):
+        rgb = COLOR_DEFS[b["color"]]
         requests += [
             {"deleteContentRange": {
                 "range": {"startIndex": b["close_start"], "endIndex": b["close_end"], "tabId": tab_id}
             }},
             {"updateTextStyle": {
                 "range": {"startIndex": b["content_start"], "endIndex": b["content_end"], "tabId": tab_id},
-                "textStyle": {"foregroundColor": {"color": {"rgbColor": RED_RGB}}},
+                "textStyle": {"foregroundColor": {"color": {"rgbColor": rgb}}},
                 "fields": "foregroundColor",
             }},
             {"deleteContentRange": {
@@ -99,32 +127,43 @@ def build_requests(blocks, tab_id):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: color_markers.py <doc_id> <tab_id>", file=sys.stderr)
+    if len(sys.argv) < 2:
+        print("Usage: ... | color_markers.py <tab_id> [--colors RED,BLUE,GREEN,WARN] | ...", file=sys.stderr)
         sys.exit(1)
 
-    doc_id, tab_id = sys.argv[1], sys.argv[2]
-    svc = get_docs_service()
+    tab_id = sys.argv[1]
 
-    doc = svc.documents().get(documentId=doc_id, includeTabsContent=True).execute()
+    # Parse --colors flag
+    colors = DEFAULT_COLORS
+    for i, arg in enumerate(sys.argv[2:], 2):
+        if arg == "--colors" and i + 1 < len(sys.argv):
+            colors = [c.strip().upper() for c in sys.argv[i + 1].split(",")]
+            break
+
+    # Read doc JSON from stdin
+    doc = json.load(sys.stdin)
     content = get_tab_content(doc.get("tabs", []), tab_id)
     if content is None:
         print(f"Error: tab '{tab_id}' not found in document.", file=sys.stderr)
         sys.exit(1)
 
     flat, index_map = flatten_text(content)
-    blocks = find_blocks(flat, index_map)
-    print(f"Found {len(blocks)} «RED» block(s).")
+    blocks = find_all_blocks(flat, index_map, colors)
+
+    counts = {}
+    for b in blocks:
+        counts[b["color"]] = counts.get(b["color"], 0) + 1
+    for color, count in counts.items():
+        print(f"Found {count} \u00ab{color}\u00bb block(s).", file=sys.stderr)
 
     if not blocks:
+        print("No color marker blocks found.", file=sys.stderr)
+        json.dump({"requests": []}, sys.stdout)
         return
 
     requests = build_requests(blocks, tab_id)
-    svc.documents().batchUpdate(
-        documentId=doc_id,
-        body={"requests": requests}
-    ).execute()
-    print(f"Done. Colored and cleaned {len(blocks)} block(s).")
+    json.dump({"requests": requests}, sys.stdout)
+    print(f"Generated {len(requests)} requests for {sum(counts.values())} block(s) across {len(counts)} color(s).", file=sys.stderr)
 
 
 if __name__ == "__main__":

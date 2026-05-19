@@ -33,18 +33,31 @@ Request = dict[str, Any]
 
 # Summary section -- level 1
 SUMMARY_L1_LABELS = [
-    "US GPV",
-    "International GPV",
+    "Square GPV",
     "Lending vs. Non-Lending",
     "Inflows Framework:",
     "Inflows (vs. AP)",
+    "Inflows (vs. Q2OL)",
+    "Inflows (vs. Q3OL)",
+    "Inflows (vs. Q4OL)",
     "Monetization rate (vs. AP)",
+    "Monetization rate (vs. Q2OL)",
+    "Monetization rate (vs. Q3OL)",
+    "Monetization rate (vs. Q4OL)",
 ]
 
 # Summary section -- level 2
 SUMMARY_L2_LABELS = [
+    "US GPV",
+    "International GPV",
     "Lending (vs. AP):",
     "Non-Lending (vs. AP):",
+    "Lending (vs. Q2OL):",
+    "Non-Lending (vs. Q2OL):",
+    "Lending (vs. Q3OL):",
+    "Non-Lending (vs. Q3OL):",
+    "Lending (vs. Q4OL):",
+    "Non-Lending (vs. Q4OL):",
     "Actives",
     "Inflows per active",
 ]
@@ -213,52 +226,65 @@ def identify_section(heading_text: str) -> str | None:
     return None
 
 
+def _strip_leading_emoji(text: str) -> str:
+    """Remove a leading status emoji + whitespace, returning the rest."""
+    t = text.lstrip()
+    for emoji in ("\U0001F7E2", "\U0001F7E1", "\U0001F534"):  # 🟢 🟡 🔴
+        if t.startswith(emoji):
+            return t[len(emoji):].lstrip()
+    return t
+
+
+def _has_benchmark_suffix(text: str) -> bool:
+    """True if text contains a "(vs. <Benchmark>)" pattern (AP, Q1OL..Q4OL)."""
+    for bench in ("(vs. AP)", "(vs. Q1OL)", "(vs. Q2OL)", "(vs. Q3OL)", "(vs. Q4OL)"):
+        if bench in text:
+            return True
+    return False
+
+
 def classify_bullet_level(text: str, section: str, saw_inflows_per_active: bool) -> int:
     """Return the nesting level (0, 1, or 2) for a bulleted paragraph.
 
-    Args:
-        text: The paragraph text content.
-        section: The current section name.
-        saw_inflows_per_active: Whether we've already seen an "Inflows per active" line
-                                (used for the Monetization rate special case).
-
-    Returns:
-        0 for top-level, 1 for level-1, 2 for level-2.
+    Matches labels against the start of the paragraph (after the optional status
+    emoji) so a paragraph that *mentions* another bullet's label downstream does
+    not accidentally inherit that level.
     """
     stripped = text.strip()
+    body = _strip_leading_emoji(stripped)
 
     if section == "summary":
         # Level 2 checks first (more specific)
         for label in SUMMARY_L2_LABELS:
-            if label in text:
+            if body.startswith(label):
                 return 2
 
-        # Special case: "Monetization rate" without "(vs. AP)" is level 2
-        # when it appears after "Inflows per active"
-        if "Monetization rate" in text and "(vs. AP)" not in text and saw_inflows_per_active:
+        # Special case: "Monetization rate" without a "(vs. <Benchmark>)"
+        # suffix is level 2 when it follows "Inflows per active"
+        if body.startswith("Monetization rate") and not _has_benchmark_suffix(body) and saw_inflows_per_active:
             return 2
 
         # Level 1
         for label in SUMMARY_L1_LABELS:
-            if label in text:
+            if body.startswith(label):
                 return 1
 
         return 0
 
     elif section == "gp_performance":
         for label in GP_L1_LABELS:
-            if label in text:
+            if body.startswith(label):
                 return 1
         return 0
 
     elif section == "aoi":
-        if stripped.startswith("We expect to achieve") or stripped.startswith("For the quarter, the business"):
+        if body.startswith("We expect to achieve") or body.startswith("For the quarter, the business"):
             return 1
         return 0
 
     elif section == "square_gpv":
         for label in SQUARE_GPV_L1_LABELS:
-            if label in text:
+            if body.startswith(label):
                 return 1
         return 0
 
