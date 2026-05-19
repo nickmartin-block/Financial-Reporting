@@ -308,9 +308,9 @@ Identical to Table 5 (Cash App detail). Rate row R19 % Margin uses pts deltas in
 
 | R | Label | Source / Derivation |
 |---|---|---|
-| R02 | New Volume Added* | BDM `sales__square_nva`. **No outlook in BDM** → cols 2+3 `[GAP]`. |
-| R03 | Self-Onboard | BDM `sales__square_self_onboarded_nva`. **No outlook** → cols 2+3 `[GAP]`. |
-| R04 | Sales | BDM `sales__square_sales_nva`. **No outlook** → cols 2+3 `[GAP]`. |
+| R02 | New Volume Added* | BDM `sales__square_nva`. **One-month lag** (35-day attribution) — April report uses March data. **No outlook** → cols 2+3 `[GAP]`. |
+| R03 | Self-Onboard | BDM `sales__square_self_onboarded_nva`. **One-month lag** — see R02. **No outlook** → cols 2+3 `[GAP]`. |
+| R04 | Sales | BDM `sales__square_sales_nva`. **One-month lag** — see R02. **No outlook** → cols 2+3 `[GAP]`. |
 | R05 | GPV | BDM `financial__square_gpv` (sum across countries). **No outlook** → cols 2+3 `[GAP]`. |
 | R06 | U.S. GPV | BDM `financial__square_gpv` filter `country_code=US`. **No outlook** → cols 2+3 `[GAP]`. |
 | R07 | International GPV | BDM `financial__square_gpv` filter `country_code!=US` (summed). **No outlook** → cols 2+3 `[GAP]`. |
@@ -360,8 +360,8 @@ Identical to Table 5 (Cash App detail). Rate row R19 % Margin uses pts deltas in
 
 | Row | Auto | Manual | Notes |
 |---|---|---|---|
-| R02 NVA Actual | $3.21B | $3.42B | $0.21B diff — likely different lag (35-day) or scope methodology |
-| R04 Sales NVA | $939M | $1.13B | Bulk of total NVA diff lives in Sales channel |
+| R02 NVA Actual | $3.46B (Mar'26) | $3.42B | ~$40M diff — within tolerance after applying one-month lag fix |
+| R02/R03/R04 YoY % | 19% / 17% / 23% | 7.3% / 8.0% / 5.9% | **Open question** — manual YoY for NVA family diverges from month-over-month. May use TTM or different attribution period. Confirm with Nick. |
 | R09 US Payments Actual | $195M | $197M | Within $2M tolerance |
 | R09 US Payments YoY | (6.0%) | (3.1%) | Definitional mismatch on US Payments |
 | R10 Intl Payments YoY | 74% | 45% | Significant — intl-entity GP grew faster than intl Payments specifically |

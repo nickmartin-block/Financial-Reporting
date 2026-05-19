@@ -948,11 +948,25 @@ def partial_gap_cells_t5(p: dict, gap_cols: tuple[int, ...], scale: str = "auto"
     return cells
 
 
+def _prior_month(yyyy_mm: str) -> str:
+    y, m = map(int, yyyy_mm.split("-"))
+    if m == 1:
+        return f"{y - 1}-12"
+    return f"{y}-{m - 1:02d}"
+
+
 def build_square_detail(raw: dict, report_month: str = "2026-04",
                         yoy_month: str = "2025-04") -> list[RowSpec]:
     """18 data rows of Test tab Table 6 (Square detail).
-    Row 0,1 = doc headers; not built here."""
+    Row 0,1 = doc headers; not built here.
+
+    NVA family (R02-R04) reports one month in arrears (35-day attribution lag).
+    Those rows pull from `report_month − 1` and `yoy_month − 1`. See
+    `feedback_nva_one_month_lag` memory.
+    """
     rows: list[RowSpec] = []
+    nva_report_month = _prior_month(report_month)
+    nva_yoy_month = _prior_month(yoy_month)
 
     def metric_row(idx: int, label: str, metric: str,
                    polarity: str = "revenue", is_total: bool = False, scale: str = "auto") -> RowSpec:
@@ -962,8 +976,10 @@ def build_square_detail(raw: dict, report_month: str = "2026-04",
 
     def partial_row(idx: int, label: str, metric: str,
                     polarity: str = "revenue", scale: str = "auto",
-                    gap_cols: tuple[int, ...] = (1, 2), note: str = "vs Q2OL cols GAP — no outlook metric in BDM"):
-        p = fetch_periods_t5(raw, metric, report_month, yoy_month)
+                    gap_cols: tuple[int, ...] = (1, 2),
+                    note: str = "vs Q2OL cols GAP — no outlook metric in BDM",
+                    rm: str | None = None, ym: str | None = None):
+        p = fetch_periods_t5(raw, metric, rm or report_month, ym or yoy_month)
         return RowSpec(row_idx=idx, label=label, cells=partial_gap_cells_t5(p, gap_cols, scale=scale),
                        polarity=polarity, notes=note)
 
@@ -979,10 +995,15 @@ def build_square_detail(raw: dict, report_month: str = "2026-04",
         return RowSpec(row_idx=idx, label=label, cells=cells, polarity=polarity,
                        is_total=is_total, notes=note)
 
-    # R02-R04 NVA family (no outlook in BDM)
-    rows.append(partial_row(2, "New Volume Added*", "sq_nva_total"))
-    rows.append(partial_row(3, "Self-Onboard", "sq_nva_self_onboarded"))
-    rows.append(partial_row(4, "Sales", "sq_nva_sales"))
+    # R02-R04 NVA family (no outlook in BDM; one-month lag — see feedback_nva_one_month_lag)
+    nva_note = (f"vs Q2OL cols GAP — no outlook metric in BDM. "
+                f"Actual + YoY from {nva_report_month} / {nva_yoy_month} (one-month lag per attribution rule).")
+    rows.append(partial_row(2, "New Volume Added*", "sq_nva_total",
+                            rm=nva_report_month, ym=nva_yoy_month, note=nva_note))
+    rows.append(partial_row(3, "Self-Onboard", "sq_nva_self_onboarded",
+                            rm=nva_report_month, ym=nva_yoy_month, note=nva_note))
+    rows.append(partial_row(4, "Sales", "sq_nva_sales",
+                            rm=nva_report_month, ym=nva_yoy_month, note=nva_note))
     # R05-R07 GPV (no outlook in BDM)
     rows.append(partial_row(5, "GPV", "sq_gpv_total"))
     rows.append(partial_row(6, "U.S. GPV", "sq_gpv_us"))
