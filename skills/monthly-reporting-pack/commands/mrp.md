@@ -54,18 +54,37 @@ See `mrp-data.md` for full sourcing details.
 
 ## Step 3 — Populate Table 2 (Block P&L Overview, 30×7)
 
+Two passes — fetch doc, apply values, re-fetch, apply colors.
+
 ```bash
+# 3a. Fetch doc JSON (current state)
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID} --include-tabs > /tmp/mrp_doc.json
+
+# 3b. Values pass — apply to Test tab
 python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_block_pl.py \
-  --doc {DOC_ID} \
+  --packet /tmp/mrp_out_{YYYY_MM}.json \
+  --doc /tmp/mrp_doc.json \
   --tab {TAB_ID} \
-  --packet /tmp/mrp_out_{YYYY_MM}.json
+  --pass values \
+  | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
+
+# 3c. Re-fetch doc (indices shifted by inserts)
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID} --include-tabs > /tmp/mrp_doc_v2.json
+
+# 3d. Colors pass — apply green/red to vs.OL cells
+python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_block_pl.py \
+  --packet /tmp/mrp_out_{YYYY_MM}.json \
+  --doc /tmp/mrp_doc_v2.json \
+  --tab {TAB_ID} \
+  --pass colors \
+  | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
 ```
 
 Helper handles:
-- Cell-index discovery via Docs API (re-resolve startIndex per cell)
-- Values pass: Roboto 10pt, center align, bold for total rows
-- Colors pass: green/red on vs.OL cols above ±$0.5M or ±1% thresholds
-- Gap rendering: red `[GAP]` for unfillable cells
+- Cell-index discovery: locates the 30×7 table whose R02 = "Gross profit" (not brittle ordinal)
+- Values pass: Roboto 10pt, center align, bold for total rows; red foreground on `[GAP]` text
+- Colors pass: green/red on vs.OL `$` deltas above ±$0.5M and on pt deltas above ±0.5pt; YoY cols stay black
+- Safety guard: refuses if `{TAB_ID}` == `t.ea3bz9hprpol` (MRP reference tab)
 
 ---
 
@@ -73,20 +92,13 @@ Helper handles:
 
 *(Phase 6 — gated on Phase 5 Table 2 validation passing.)*
 
-```bash
-python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_stnd_pl.py \
-  --doc {DOC_ID} \
-  --tab {TAB_ID} \
-  --packet /tmp/mrp_out_{YYYY_MM}.json
-```
+Same two-pass pattern; helper `populate_stnd_pl.py` not yet implemented.
 
 ---
 
 ## Step 5 — Validate
 
-Invoke `/mrp-validate --doc {DOC_ID} --tab {TAB_ID} --packet /tmp/mrp_out_{YYYY_MM}.json`.
-
-Reports PASS/FAIL/WARN per cell. See `mrp-validate.md`.
+Invoke `/mrp-validate` with the Test tab ID + packet path. See `mrp-validate.md` for details. Calls `validate_block_pl.py` end-to-end against both layers.
 
 ---
 

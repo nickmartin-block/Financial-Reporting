@@ -29,82 +29,74 @@ Cell-by-cell validation of the published MRP Test tab. Two layers:
 - `TEST_TAB_ID` — default `t.3mz1duijrdf1`
 - `MRP_TAB_ID` — default `t.ea3bz9hprpol` (manual reference)
 - `PACKET_PATH` — default `/tmp/mrp_out_{YYYY_MM}.json` (derive YYYY_MM from packet meta or from period arg)
+- `REPORT_PATH` — default `~/Desktop/Nick's Cursor/Monthly Reporting Pack/mrp_validation_{YYYY_MM}.md`
 
 ---
 
-## Step 2 — Read Test tab + MRP tab
+## Step 2 — Fetch current doc state
 
 ```bash
-cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID}
-```
-
-Parse out Tables 2 and 3 from both tabs. Extract cell text into a structured form:
-```python
-{tab_id: {table_idx: [[cell_text per col] per row]}}
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID} --include-tabs > /tmp/mrp_doc.json
 ```
 
 ---
 
-## Step 3 — Layer 1 validation (Test tab ↔ JSON packet)
+## Step 3 — Run validator helper
 
-For each row in `packet["block_pl"]["rows"]`:
-- Compare `*_formatted` strings to Test tab cell text exactly
-- For numeric mismatches, parse + compare with tolerance: $1M for amounts, 0.5pts for rates
-- Flag missing cells (empty when JSON has a value) and extra cells (non-empty when JSON has `null`/gap)
+```bash
+python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/validate_block_pl.py \
+  --doc /tmp/mrp_doc.json \
+  --packet {PACKET_PATH} \
+  --test-tab {TEST_TAB_ID} \
+  --mrp-tab {MRP_TAB_ID} \
+  --out {REPORT_PATH}
+```
 
-Same for `packet["stnd_pl"]["rows"]`.
+The helper handles both layers:
 
----
+**Layer 1 — Test tab ↔ JSON packet (publish-pipeline check).** For each row in the packet, compares the `formatted` string to the Test tab cell text. Exact match passes; otherwise both sides are parsed numerically and compared with tolerance ($1M for $, 1pt for rates, 0.5pts for pts deltas).
 
-## Step 4 — Layer 2 validation (Test tab ↔ MRP tab manual)
+**Layer 2 — Test tab ↔ MRP tab manual reference (source-mapping check).** For each cell, compares Test tab text to the same cell in the manual MRP tab. Catches source-mapping bugs Layer 1 misses (Test tab and packet agree, but both wrong vs. published).
 
-For each cell in (Test tab Table 2 ∪ Table 3):
-- Compare to the same cell position in (MRP tab corresponding table)
-- Parse numerics with tolerance ($1M / 0.5pts)
-- Flag deltas
+Known WARN-not-FAIL cases hard-coded in the helper:
+- People row (R29): headcount not in BDM
+- Bitcoin Lightning / Bitkey (R07/R08): BDM segment labels TBD
+- Adj EBITDA + margin (R27/R28): source TBD
+- QTD Pace columns (cols 4-6): ~$20M contingency divergence
 
-Known WARN-not-FAIL discrepancies (from Flash v2.0 + Mar'26 MRP work):
-- Square sub-product groupings (Banking, SaaS, Hardware basis differences)
-- GAAP OpEx ~$13M gap (MCP aggregate vs reference)
-- People row (headcount) — DATA GAP, always WARN
-
----
-
-## Step 5 — Output report
-
-Write to `~/Desktop/Nick's Cursor/Monthly Reporting Pack/mrp_validation_{YYYY_MM}.md`:
+Report format (markdown):
 
 ```markdown
 # MRP Validation Report — {Month YYYY}
 
-**Date:** YYYY-MM-DD
-**Test tab:** {TEST_TAB_ID}
-**MRP tab (reference):** {MRP_TAB_ID}
-**Packet:** {PACKET_PATH}
+**Generated:** ISO timestamp
+**Quarter:** Q2 (Q2OL = Q2 Outlook)
 
 ## Summary
-- Table 2 (Block P&L): {pass}/{total} cells PASS, {fail} FAIL, {warn} WARN
-- Table 3 (Stnd P&L): {pass}/{total} cells PASS, {fail} FAIL, {warn} WARN
-- Layer 1 (cell ↔ packet): {summary}
-- Layer 2 (cell ↔ MRP tab): {summary}
+- Total checks: N
+- PASS: N | FAIL: N | WARN: N
+- Layer 1: N PASS / N FAIL / N WARN
+- Layer 2: N PASS / N FAIL / N WARN
 
 ## Failures
-| Table | Row | Col | Test value | Expected | Source | Notes |
-|---|---|---|---|---|---|---|
+| Layer | R | Row | Col | Kind | Test | Expected | Δ | Note |
 
-## Warnings (known discrepancies)
-| Table | Row | Col | Test value | MRP tab | Notes |
-|---|---|---|---|---|---|
-
-## Gaps
-| Table | Row | Cell | Status |
-|---|---|---|---|
+## Warnings
+| Layer | R | Row | Col | Kind | Test | Expected | Δ | Note |
 ```
 
-Print console summary:
+Exit code: `0` if all checks PASS or WARN; `1` if any FAIL.
+
+---
+
+## Step 4 — Console summary
+
+The helper prints:
 ```
-=== /mrp-validate ===
-Layer 1: {n_pass}/{n_total} PASS | {n_fail} FAIL | {n_warn} WARN
-Layer 2: {n_pass}/{n_total} PASS | {n_fail} FAIL | {n_warn} WARN
+Validation: N PASS / N FAIL / N WARN
+  Layer 1: P/F/W
+  Layer 2: P/F/W
 Report: {path}
 ```
+
+Surface this to Nick along with any FAIL items needing attention.
