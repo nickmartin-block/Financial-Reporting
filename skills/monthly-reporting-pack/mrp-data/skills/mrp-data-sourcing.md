@@ -293,3 +293,93 @@ R04 Core Cash App, R13 Lending, R18 Cash App GAAP GP, R19 Afterpay, R26 Commerce
 | R19 Afterpay | $82M / ($1.0M) / (1.3%) / 20% | $82M / ($1.1M) / (1.3%) / 22% | ≈ small composition diff (3059) |
 | R26 Commerce GAAP GP | $98M / $0.9M / 1.0% / 15% | $98M / $0.9M / 1.0% / 15% | ✓ exact |
 | R27 Total GAAP GP | $653M / $16M / 2.5% / 35% | $653M / $16M / 2.5% / 35% | ✓ exact |
+
+---
+
+## Table 6 — Square detail (20 rows × 5 cols)
+
+**Test tab Table 6** (6th table, startIndex ~5478 as of 2026-05-19). Manual MRP reference at **MRP tab Table 5** (20×5 — same shape).
+
+### Column layout
+
+Identical to Table 5 (Cash App detail). Rate row R19 % Margin uses pts deltas in cols 3+4; col 2 empty.
+
+### Row map (18 data rows)
+
+| R | Label | Source / Derivation |
+|---|---|---|
+| R02 | New Volume Added* | BDM `sales__square_nva`. **No outlook in BDM** → cols 2+3 `[GAP]`. |
+| R03 | Self-Onboard | BDM `sales__square_self_onboarded_nva`. **No outlook** → cols 2+3 `[GAP]`. |
+| R04 | Sales | BDM `sales__square_sales_nva`. **No outlook** → cols 2+3 `[GAP]`. |
+| R05 | GPV | BDM `financial__square_gpv` (sum across countries). **No outlook** → cols 2+3 `[GAP]`. |
+| R06 | U.S. GPV | BDM `financial__square_gpv` filter `country_code=US`. **No outlook** → cols 2+3 `[GAP]`. |
+| R07 | International GPV | BDM `financial__square_gpv` filter `country_code!=US` (summed). **No outlook** → cols 2+3 `[GAP]`. |
+| R08 | **Gross profit by product** | Section header (no data). |
+| R09 | U.S. Payments | **DERIVED:** `square_pnl_processing_gp_actual − square_pnl_intl_gp_actual`. `country_code` dim unavailable on `pnl_gross_profit_*`. **vs Q2OL cols `[GAP]`** — entity outlook includes non-Payments activity for intl entities and diverges materially. |
+| R10 | International Payments | BDM `square_pnl_intl_gp_actual` (intl-entity GP — proxy for intl Payments since intl entities are mostly Payments business). **vs Q2OL cols `[GAP]`** for same reason as R09. |
+| R11 | SaaS | BDM `square_pnl_saas_gp_actual` (4xxx products). Outlook **derived** from `pnl_gross_profit_outlook` summed over EDM Topline=SaaS (Square brand) — no dedicated outlook metric. |
+| R12 | **Banking** (subtotal) | **DERIVED:** R13 + R14. |
+| R13 | Loans | BDM `square_pnl_capital_gp_actual` (product=3010). Outlook derived from `pnl_gross_profit_outlook` product=3010. |
+| R14 | Business Banking | BDM `square_pnl_banking_gp_actual` (banking topline ex Capital). Outlook derived from sum of banking products. |
+| R15 | Hardware | BDM `square_pnl_hardware_gp_actual` (2xxx products). Outlook derived from sum of 2xxx products. |
+| R16 | **Total Gross Profit** | BDM `square_pnl_total_gp_actual`. Outlook from `pnl_gross_profit_outlook` filter `product_brand=Square` subtotal ($357.6M Apr'26). `square_pnl_total_gp_outlook` metric returns empty in BDM. |
+| R17 | Variable Opex | **GAP** — no per-brand Variable Opex metric in BDM. Manual $23M Apr'26 via Hyperion. |
+| R18 | Variable Profit | **GAP** — depends on Variable Opex. Manual $340M Apr'26. |
+| R19 | % Margin | **GAP** rate row — depends on Variable Profit. Manual 93.6% Apr'26. |
+
+### BDM sources
+
+| Metric | Purpose |
+|---|---|
+| `financial__profit_and_loss__square_pnl_total_gp_actual` | R16 anchor (Apr'26+Apr'25) |
+| `financial__profit_and_loss__square_pnl_processing_gp_actual` | R09+R10 combined (Processing topline) |
+| `financial__profit_and_loss__square_pnl_saas_gp_actual` | R11 SaaS |
+| `financial__profit_and_loss__square_pnl_banking_gp_actual` | R14 Business Banking (ex Capital) |
+| `financial__profit_and_loss__square_pnl_capital_gp_actual` | R13 Loans (3010 only) |
+| `financial__profit_and_loss__square_pnl_hardware_gp_actual` | R15 Hardware (2xxx) |
+| `financial__profit_and_loss__square_pnl_intl_gp_actual` | R10 Intl Payments proxy (intl entities) |
+| `financial__profit_and_loss__pnl_gross_profit_outlook` dim=[product] filter Q2 Outlook | Sub-product OL derivation (Banking, SaaS, Capital, Hardware) |
+| `financial__square_gpv` dim=[country_code] | R05/R06/R07 GPV split |
+| `sales__square_nva` / `sales__square_self_onboarded_nva` / `sales__square_sales_nva` | R02/R03/R04 |
+
+### Confirmed gaps (Apr'26)
+
+| Row | Gap | Manual MRP value (reference only) |
+|---|---|---|
+| R02 cols 2+3 | NVA outlook missing | ($108M) / (3.1%) |
+| R03 cols 2+3 | Self-Onboard NVA outlook missing | ($15M) / (0.6%) |
+| R04 cols 2+3 | Sales NVA outlook missing | ($94M) / (7.6%) |
+| R05/R06/R07 cols 2+3 | GPV outlook missing | $165M / 0.7%, $258M / 1.4%, ($93M) / (1.9%) |
+| R09 cols 2+3 | US Payments outlook needs country-aware metric (BDM has entity-only) | $4.8M / 2.5% |
+| R10 cols 2+3 | Intl Payments outlook — entity proxy diverges materially | ($1.1M) / (2.5%) |
+| R17 all cols | Per-brand Variable Opex not in BDM | $23M / ($11.8M) / (34%) / 17.9% |
+| R18 all cols | Derived from R17 | $340M / $17M / 5.4% / 5.5% |
+| R19 all cols | Derived from R18 | 93.6% / "" / 3.4pp / -0.6pp |
+
+### Approximation notes (where automated diverges from manual)
+
+| Row | Auto | Manual | Notes |
+|---|---|---|---|
+| R02 NVA Actual | $3.21B | $3.42B | $0.21B diff — likely different lag (35-day) or scope methodology |
+| R04 Sales NVA | $939M | $1.13B | Bulk of total NVA diff lives in Sales channel |
+| R09 US Payments Actual | $195M | $197M | Within $2M tolerance |
+| R09 US Payments YoY | (6.0%) | (3.1%) | Definitional mismatch on US Payments |
+| R10 Intl Payments YoY | 74% | 45% | Significant — intl-entity GP grew faster than intl Payments specifically |
+| R11 SaaS Actual | $42M | $43M | Within $1M (dedicated metric may have slightly different scope) |
+| R15 Hardware % vs OL / YoY | (18%) / (65%) | 18% / 65% | Sign convention difference for negative-GP rows. Mine: GP got more negative = negative %. Manual: drops sign. Both mathematically valid. |
+
+### Bold rows
+
+R12 Banking, R16 Total Gross Profit, R17 Variable Opex (when populated), R18 Variable Profit, R19 % Margin.
+
+### Reconciliation vs manual MRP (Apr'26)
+
+| Row | Auto | Manual | Match |
+|---|---|---|---|
+| R05 GPV | $23.03B | $23.03B | ✓ exact |
+| R06 US GPV | $18.12B | $18.12B | ✓ exact |
+| R07 Intl GPV | $4.91B | $4.91B | ✓ exact |
+| R12 Banking | $95M / $3.3M / 3.5% / 18% | $95M / $3.3M / 3.5% / 18% | ✓ exact |
+| R13 Loans | $57M / $1.9M / 3.4% / 14% | $57M / $1.9M / 3.4% / 14% | ✓ exact |
+| R14 Business Banking | $38M / $1.4M / 3.8% / 24% | $38M / $1.4M / 3.8% / 24% | ✓ exact |
+| R16 Total GP | $363M / $5.7M / 1.6% / 6.2% | $363M / $5.7M / 1.6% / 6.2% | ✓ exact |

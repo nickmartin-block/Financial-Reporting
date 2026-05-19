@@ -934,11 +934,97 @@ def build_cash_app_detail(raw: dict, report_month: str = "2026-04",
 
 
 # ============================================================
+# Square detail (Table 6) builder — 20x5 layout
+# Cols: [label, Actual, $ vs. Q2OL, % vs. Q2OL, YoY % Growth]
+# ============================================================
+
+def partial_gap_cells_t5(p: dict, gap_cols: tuple[int, ...], scale: str = "auto") -> list[CellSpec]:
+    """4 cells for Table 5/6 where specific columns render [GAP].
+    gap_cols are packet indices (1=$vsOL, 2=%vsOL most commonly)."""
+    cells = cells_for_metric_t5(p, scale=scale)
+    for col_idx in gap_cols:
+        kind = cells[col_idx].col_kind
+        cells[col_idx] = CellSpec(None, "[GAP]", kind)
+    return cells
+
+
+def build_square_detail(raw: dict, report_month: str = "2026-04",
+                        yoy_month: str = "2025-04") -> list[RowSpec]:
+    """18 data rows of Test tab Table 6 (Square detail).
+    Row 0,1 = doc headers; not built here."""
+    rows: list[RowSpec] = []
+
+    def metric_row(idx: int, label: str, metric: str,
+                   polarity: str = "revenue", is_total: bool = False, scale: str = "auto") -> RowSpec:
+        p = fetch_periods_t5(raw, metric, report_month, yoy_month)
+        return RowSpec(row_idx=idx, label=label, cells=cells_for_metric_t5(p, scale=scale),
+                       polarity=polarity, is_total=is_total)
+
+    def partial_row(idx: int, label: str, metric: str,
+                    polarity: str = "revenue", scale: str = "auto",
+                    gap_cols: tuple[int, ...] = (1, 2), note: str = "vs Q2OL cols GAP — no outlook metric in BDM"):
+        p = fetch_periods_t5(raw, metric, report_month, yoy_month)
+        return RowSpec(row_idx=idx, label=label, cells=partial_gap_cells_t5(p, gap_cols, scale=scale),
+                       polarity=polarity, notes=note)
+
+    def derived(idx: int, label: str, positive: list[str], negative: list[str],
+                polarity: str = "revenue", is_total: bool = False) -> RowSpec:
+        pos = sum_periods_t5([fetch_periods_t5(raw, m, report_month, yoy_month) for m in positive])
+        neg = sum_periods_t5([fetch_periods_t5(raw, m, report_month, yoy_month) for m in negative]) \
+              if negative else {"actual": 0.0, "ol": 0.0, "yoy_prior": 0.0}
+        per = {k: (pos[k] - neg[k]) if (pos[k] is not None and neg[k] is not None) else None
+               for k in ["actual", "ol", "yoy_prior"]}
+        cells = cells_for_metric_t5(per)
+        note = f"Derived: + {' + '.join(positive)}" + (f" - {' - '.join(negative)}" if negative else "")
+        return RowSpec(row_idx=idx, label=label, cells=cells, polarity=polarity,
+                       is_total=is_total, notes=note)
+
+    # R02-R04 NVA family (no outlook in BDM)
+    rows.append(partial_row(2, "New Volume Added*", "sq_nva_total"))
+    rows.append(partial_row(3, "Self-Onboard", "sq_nva_self_onboarded"))
+    rows.append(partial_row(4, "Sales", "sq_nva_sales"))
+    # R05-R07 GPV (no outlook in BDM)
+    rows.append(partial_row(5, "GPV", "sq_gpv_total"))
+    rows.append(partial_row(6, "U.S. GPV", "sq_gpv_us"))
+    rows.append(partial_row(7, "International GPV", "sq_gpv_intl"))
+    # R08 section header
+    rows.append(section_row_t5(8, "Gross profit by product"))
+    # R09-R10 US/Intl Payments — no country dim on pnl_gross_profit_*; vs OL cols GAP
+    rows.append(partial_row(9, "U.S. Payments", "sq_us_payments",
+                            note="Derived as Processing - Intl entity GP (BDM has no country split). vs Q2OL cols GAP."))
+    rows.append(partial_row(10, "International Payments", "sq_intl_payments",
+                            note="Intl entity GP proxy (BDM has no Payments-by-country metric). vs Q2OL cols GAP."))
+    # R11 SaaS
+    rows.append(metric_row(11, "SaaS", "sq_saas_gp"))
+    # R12 Banking = R13 + R14 (derived subtotal)
+    rows.append(derived(12, "Banking", positive=["sq_loans_gp", "sq_biz_banking_gp"], negative=[],
+                        is_total=True))
+    # R13 Loans (= Capital)
+    rows.append(metric_row(13, "Loans", "sq_loans_gp"))
+    # R14 Business Banking (= Banking ex-Capital)
+    rows.append(metric_row(14, "Business Banking", "sq_biz_banking_gp"))
+    # R15 Hardware
+    rows.append(metric_row(15, "Hardware", "sq_hardware_gp"))
+    # R16 Total Gross Profit (brand-level)
+    rows.append(metric_row(16, "Total Gross Profit", "sq_brand_total_gp", is_total=True))
+    # R17-R19 Variable Opex / Profit / Margin — GAP (no per-brand Variable Opex in BDM)
+    rows.append(gap_row_t5(17, "Variable Opex", polarity="cost",
+                           notes="BDM has no per-brand Variable Opex; manual MRP $23M (Apr'26) via Hyperion"))
+    rows.append(gap_row_t5(18, "Variable Profit", polarity="revenue", is_total=True,
+                           notes="Depends on Variable Opex (GAP); manual MRP $340M (Apr'26)"))
+    rows.append(gap_row_t5(19, "% Margin", polarity="rate",
+                           notes="Depends on Variable Profit (GAP); manual MRP 93.6% (Apr'26)"))
+
+    return rows
+
+
+# ============================================================
 # Main packet assembly + CLI
 # ============================================================
 
 def assemble_packet(raw: dict, report_month: str,
-                    cash_app_raw: dict | None = None) -> dict:
+                    cash_app_raw: dict | None = None,
+                    square_raw: dict | None = None) -> dict:
     anchors = compute_anchors(report_month)
     block_rows = build_block_pl_overview(raw, anchors)
     stnd_rows = build_stnd_pl_double_click(raw, anchors)
@@ -953,6 +1039,16 @@ def assemble_packet(raw: dict, report_month: str,
         )
         cash_app_block = {"table_index": 5, "rows": [r.to_json() for r in ca_rows]}
         all_rows = all_rows + ca_rows
+
+    square_block = None
+    if square_raw is not None:
+        sq_rows = build_square_detail(
+            square_raw,
+            report_month=report_month,
+            yoy_month=anchors["yoy_prior_month"],
+        )
+        square_block = {"table_index": 6, "rows": [r.to_json() for r in sq_rows]}
+        all_rows = all_rows + sq_rows
 
     gaps = list({r.label for r in all_rows if r.is_gap})
     packet = {
@@ -980,6 +1076,8 @@ def assemble_packet(raw: dict, report_month: str,
     }
     if cash_app_block is not None:
         packet["cash_app_detail"] = cash_app_block
+    if square_block is not None:
+        packet["square_detail"] = square_block
     return packet
 
 
@@ -989,6 +1087,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--raw", required=True, help="Path to raw JSON input (Tables 2+3)")
     p.add_argument("--cash-app-raw", default=None,
                    help="Optional path to raw JSON for Cash App detail (Table 5)")
+    p.add_argument("--square-raw", default=None,
+                   help="Optional path to raw JSON for Square detail (Table 6)")
     p.add_argument("--out", required=True, help="Path to output JSON packet")
     args = p.parse_args(argv)
 
@@ -999,8 +1099,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.cash_app_raw:
         with open(args.cash_app_raw) as f:
             cash_app_raw = json.load(f)
+    square_raw = None
+    if args.square_raw:
+        with open(args.square_raw) as f:
+            square_raw = json.load(f)
 
-    packet = assemble_packet(raw, args.month, cash_app_raw=cash_app_raw)
+    packet = assemble_packet(raw, args.month, cash_app_raw=cash_app_raw, square_raw=square_raw)
 
     with open(args.out, "w") as f:
         json.dump(packet, f, indent=2, default=str)
@@ -1008,9 +1112,13 @@ def main(argv: list[str] | None = None) -> int:
     n_t2 = len(packet["block_pl_overview"]["rows"])
     n_t3 = len(packet["stnd_pl_double_click"]["rows"])
     n_t5 = len(packet["cash_app_detail"]["rows"]) if "cash_app_detail" in packet else 0
+    n_t6 = len(packet["square_detail"]["rows"]) if "square_detail" in packet else 0
     n_gaps = len(packet["gaps"])
-    suffix = f", Cash App {n_t5} rows" if n_t5 else ""
-    print(f"Wrote {args.out}: Block P&L {n_t2} rows, Stnd P&L {n_t3} rows{suffix}, {n_gaps} unique gaps")
+    extras = []
+    if n_t5: extras.append(f"Cash App {n_t5} rows")
+    if n_t6: extras.append(f"Square {n_t6} rows")
+    extras_str = (", " + ", ".join(extras)) if extras else ""
+    print(f"Wrote {args.out}: Block P&L {n_t2} rows, Stnd P&L {n_t3} rows{extras_str}, {n_gaps} unique gaps")
     if packet["gaps"]:
         print("Gaps: " + ", ".join(sorted(packet["gaps"])))
     return 0

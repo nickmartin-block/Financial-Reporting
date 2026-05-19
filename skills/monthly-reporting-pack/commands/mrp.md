@@ -155,6 +155,40 @@ See `mrp-data/skills/mrp-data-sourcing.md` Table 5 section for per-row source ma
 
 ---
 
+## Step 4c — Populate Table 6 (Square detail, 20×5)
+
+Run only when packet includes `square_detail` block (i.e. when `mrp_data.py` was invoked with `--square-raw`).
+
+```bash
+# 4c-i. Values pass
+python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_square_detail.py \
+  --packet /tmp/mrp_out_{YYYY_MM}.json \
+  --doc /tmp/mrp_doc_v3.json \
+  --tab {TAB_ID} \
+  --pass values \
+  | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
+
+# 4c-ii. Re-fetch + colors pass
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID} --include-tabs > /tmp/mrp_doc_v4.json
+python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_square_detail.py \
+  --packet /tmp/mrp_out_{YYYY_MM}.json \
+  --doc /tmp/mrp_doc_v4.json \
+  --tab {TAB_ID} \
+  --pass colors \
+  | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
+```
+
+Helper handles:
+- Cell-index discovery: 20×5 table whose R02 col 0 starts with "New Volume Added"
+- Values pass: Roboto 10pt, CENTER, bold for subtotals (R12 Banking, R16 Total GP) + Variable Profit/Margin rows
+- Colors pass: cols 2+3 polarity-aware; thresholds ±$0.5M / ±0.5%
+- Per-cell `[GAP]` rendering for NVA/GPV/US-Intl Payments vs OL cols + whole-row `[GAP]` for R17-R19 (Variable Opex/Profit/Margin not in BDM per-brand)
+- Safety: refuses to write to `{TAB_ID}` == `t.ea3bz9hprpol`
+
+See `mrp-data/skills/mrp-data-sourcing.md` Table 6 section for per-row source map + reconciliation.
+
+---
+
 ## Step 5 — Validate
 
 Invoke `/mrp-validate` with the Test tab ID + packet path. See `mrp-validate.md` for details. Calls `validate_block_pl.py` end-to-end against both layers.
