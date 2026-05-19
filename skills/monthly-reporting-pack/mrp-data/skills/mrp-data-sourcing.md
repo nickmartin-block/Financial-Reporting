@@ -129,7 +129,7 @@ No QTD cols on this table.
 | R08 | Bad Debt Expense | BDM `pnl_bad_debt_expense_opex_actual` |
 | R09 | Customer Reimbursements | BDM `pnl_customer_reimbursements_opex_actual` |
 | **R10** | **Acquisition Costs (section header)** | non-data; leave blank |
-| R11 | Marketing (Non-People) | **DERIVED (verify):** Per Flash sourcing this is `Marketing + Onboarding + Partnership Fees + Reader Expense`. If MRP convention differs, may be just `pnl_marketing_opex_actual`. Phase 2 will compare against the MRP tab value to confirm derivation. |
+| R11 | Marketing (Non-People) | **DERIVED:** `pnl_marketing_opex + pnl_onboarding_opex + pnl_partnership_fees_opex + pnl_reader_expense_opex`. Phase 6 Apr'26 verified: Marketing alone = $53.5M (doesn't match manual $63M); sum of four = $63.1M ≈ manual $63M ✓. |
 | R12 | Sales & Marketing (People) | BDM `pnl_sales_marketing_people_opex_actual` |
 | **R13** | **Fixed Costs (section header)** | non-data; leave blank |
 | R14 | Product Development People | BDM `pnl_prod_dev_people_opex_actual` |
@@ -145,16 +145,12 @@ No QTD cols on this table.
 | R24 | Hardware Production Costs | BDM `pnl_hardware_production_costs_opex_actual` |
 | R25 | Non-Cash expenses (ex. SBC) | BDM `pnl_non_cash_expense_excl_sbc_opex_actual` |
 | **R26** | **GAAP OpEx (subtotal)** | BDM `pnl_total_block_gaap_opex_actual` |
-| **R27** | **Total FTE Personnel Costs (incl. SBC) (subtotal)** | **TBD — verify in Phase 2.** If function-level subtotals (R28-R32) aren't in BDM, this subtotal is also GAP. Possible derivation: sum of all `*_people_*` OpEx + SBC, but requires per-function splits. |
-| R28 | FTE Personnel — Product Development | **LIKELY GAP** — not in registry. Verify in Phase 2 via `metric_store_search` for `*personnel*product*` etc. |
-| R29 | FTE Personnel — S&M | **LIKELY GAP** — same |
-| R30 | FTE Personnel — G&A | **LIKELY GAP** — same |
-| R31 | FTE Personnel — Customer Support | **LIKELY GAP** — same |
-| R32 | FTE Personnel — Compliance | **LIKELY GAP** — same |
-| **R33** | **Total Contractors (subtotal)** | **TBD — verify in Phase 2.** |
-| R34-R38 | Contractors by function (PD, S&M, G&A, CS, Compliance) | **LIKELY GAP** — same |
-| **R39** | **SBC (subtotal)** | **TBD — verify in Phase 2.** BDM may have a Block-level `pnl_sbc_opex_actual` or similar. |
-| R40-R44 | SBC by function | **LIKELY GAP** — same |
+| **R27** | **Total FTE Personnel Costs (incl. SBC) (subtotal)** | BDM `pnl_total_personnel_cost_opex_actual` / `_outlook`. The metric is CS + S&M + PD + G&A people (excludes Compliance and excludes SBC per metric description). Apr'26 Phase 6 verified: BDM $283M vs manual R27 $251M — **$32M divergence**; the manual label "(incl. SBC)" doesn't match BDM's definition. Treat as known Layer 2 WARN. |
+| R28-R32 | FTE Personnel by function (PD/S&M/G&A/CS/Compliance) | **CONFIRMED GAP (Phase 6)** — no function-level Personnel metric in BDM. Render as red `[GAP]`. |
+| **R33** | **Total Contractors (subtotal)** | **CONFIRMED GAP (Phase 6)** — Contractors not exposed as a metric in BDM. |
+| R34-R38 | Contractors by function | **CONFIRMED GAP (Phase 6)** — same. |
+| **R39** | **SBC (subtotal)** | BDM `financial__profit_and_loss__share_based_compensation_incl_cogs_actual`. Apr'26 $108M ✓ matches manual. **No `_outlook` variant exists in BDM**, so R39 vs.OL cell is rendered blank (empty), not `[GAP]`. |
+| R40-R44 | SBC by function | **CONFIRMED GAP (Phase 6)** — no function-level SBC metric in BDM. |
 
 ### Bold rows
 

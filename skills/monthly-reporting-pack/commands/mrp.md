@@ -90,9 +90,34 @@ Helper handles:
 
 ## Step 4 — Populate Table 3 (Stnd P&L Double Click, 45×4)
 
-*(Phase 6 — gated on Phase 5 Table 2 validation passing.)*
+Same two-pass pattern as Step 3, using `populate_stnd_pl.py`:
 
-Same two-pass pattern; helper `populate_stnd_pl.py` not yet implemented.
+```bash
+# 4a. Values pass — apply to Test tab Table 3
+python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_stnd_pl.py \
+  --packet /tmp/mrp_out_{YYYY_MM}.json \
+  --doc /tmp/mrp_doc.json \
+  --tab {TAB_ID} \
+  --pass values \
+  | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
+
+# 4b. Re-fetch + colors pass
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID} --include-tabs > /tmp/mrp_doc_v2.json
+python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_stnd_pl.py \
+  --packet /tmp/mrp_out_{YYYY_MM}.json \
+  --doc /tmp/mrp_doc_v2.json \
+  --tab {TAB_ID} \
+  --pass colors \
+  | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
+```
+
+Helper handles:
+- Cell-index discovery: 45×4 table whose R00 col 0 starts with "Standardized P&L"
+- Values pass: Roboto 10pt, CENTER, bold for sub-totals (R26 GAAP OpEx, R27 Total Personnel, R33 Contractors, R39 SBC) + section headers (R02 / R10 / R13)
+- Colors pass: single vs.OL column polarity-aware (cost rows: positive = red, negative = green)
+- Gap rendering: red `[GAP]` for R28-R38 + R40-R44 (function-level Personnel/Contractors/SBC — not in BDM)
+- R39 SBC vs.OL stays blank (`share_based_compensation_incl_cogs_outlook` doesn't exist in BDM)
+- Safety: refuses to write to `{TAB_ID}` == `t.ea3bz9hprpol`
 
 ---
 
