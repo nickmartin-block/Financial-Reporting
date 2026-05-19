@@ -641,11 +641,125 @@ def build_ebitda_margin_row(idx: int, raw: dict, anchors: dict) -> RowSpec:
 # Main packet assembly + CLI
 # ============================================================
 
+# ============================================================
+# Stnd P&L Double Click (Table 3) builder
+# ============================================================
+
+def cells_for_metric_t3(p: dict, scale: str = "auto") -> list[CellSpec]:
+    """3 cells for a Table 3 metric: [actual, yoy_pct, vs_ol_dollar]. No QTD."""
+    actual = p["actual"]
+    yoy_pct = yoy(actual, p["yoy_prior"])
+    vs_ol = variance(actual, p["ol"])
+    return [
+        CellSpec(actual, fmt_actual(actual, scale=scale), "actual"),
+        CellSpec(yoy_pct, fmt_pct(yoy_pct), "yoy_pct"),
+        CellSpec(vs_ol, fmt_delta_dollar(vs_ol), "vs_ol_dollar"),
+    ]
+
+
+def gap_row_t3(idx: int, label: str, polarity: str = "cost", notes: str = "DATA GAP") -> RowSpec:
+    cells = [CellSpec(None, "[GAP]", "actual") for _ in range(3)]
+    return RowSpec(row_idx=idx, label=label, cells=cells, is_gap=True, polarity=polarity, notes=notes)
+
+
+def section_row_t3(idx: int, label: str) -> RowSpec:
+    cells = [CellSpec(None, EMPTY, "actual") for _ in range(3)]
+    return RowSpec(row_idx=idx, label=label, cells=cells, is_section_header=True)
+
+
+def build_stnd_pl_double_click(raw: dict, anchors: dict) -> list[RowSpec]:
+    """43 data rows of Test tab Table 3 (Standardized P&L Double Click)."""
+    rows: list[RowSpec] = []
+
+    def metric_t3(idx: int, label: str, metric: str, polarity: str = "cost",
+                  is_total: bool = False) -> RowSpec:
+        periods = fetch_periods(raw, metric, anchors)
+        cells = cells_for_metric_t3(periods)
+        return RowSpec(row_idx=idx, label=label, cells=cells, polarity=polarity, is_total=is_total)
+
+    # Variable Operational Costs section
+    rows.append(section_row_t3(2, "Variable Operational Costs"))
+    rows.append(metric_t3(3, "P2P", "p2p_opex"))
+    rows.append(metric_t3(4, "Risk Loss", "risk_loss_opex"))
+    rows.append(metric_t3(5, "Card Issuance", "card_issuance_opex"))
+    rows.append(metric_t3(6, "Warehouse Financing", "warehouse_financing_opex"))
+    rows.append(metric_t3(7, "Hardware Logistics", "hw_logistics_opex"))
+    rows.append(metric_t3(8, "Bad Debt Expense", "bad_debt_opex"))
+    rows.append(metric_t3(9, "Customer Reimbursements", "customer_reimbursements_opex"))
+
+    # Acquisition Costs section
+    rows.append(section_row_t3(10, "Acquisition Costs"))
+    # R11 Marketing (Non-People) = Marketing + Onboarding + Partnership + Reader
+    rows.append(derived_sum_row_t3(
+        idx=11, label="Marketing (Non-People)",
+        components=["marketing_opex", "onboarding_opex", "partnership_fees_opex", "reader_expense_opex"],
+        raw=raw, anchors=anchors, polarity="cost",
+    ))
+    rows.append(metric_t3(12, "Sales & Marketing (People)", "sm_people_opex"))
+
+    # Fixed Costs section
+    rows.append(section_row_t3(13, "Fixed Costs"))
+    rows.append(metric_t3(14, "Product Development People", "prod_dev_people_opex"))
+    rows.append(metric_t3(15, "G&A People (ex. CS)", "ga_people_ex_cs_opex"))
+    rows.append(metric_t3(16, "Customer Support People", "cs_people_opex"))
+    rows.append(metric_t3(17, "Software", "software_fees_opex"))
+    rows.append(metric_t3(18, "Cloud fees", "cloud_fees_opex"))
+    rows.append(metric_t3(19, "Taxes, Insurance & Other Corp", "taxes_insurance_other_opex"))
+    rows.append(metric_t3(20, "Legal fees", "legal_fees_opex"))
+    rows.append(metric_t3(21, "Other Professional Services", "other_pro_services_opex"))
+    rows.append(metric_t3(22, "Rent, Facilities, Equipment", "rent_facilities_equipment_opex"))
+    rows.append(metric_t3(23, "Travel & Entertainment", "travel_entertainment_opex"))
+    rows.append(metric_t3(24, "Hardware Production Costs", "hardware_production_opex"))
+    rows.append(metric_t3(25, "Non-Cash expenses (ex. SBC)", "non_cash_excl_sbc_opex"))
+
+    # GAAP OpEx subtotal
+    rows.append(metric_t3(26, "GAAP OpEx", "gaap_opex_total", is_total=True))
+
+    # Total FTE Personnel Costs (incl. SBC) — BDM subtotal; per-function are GAP
+    rows.append(metric_t3(27, "Total FTE Personnel Costs (incl. SBC)", "total_personnel_cost_opex", is_total=True))
+    for idx, fn_label in [(28, "Product Development"), (29, "S&M"), (30, "G&A"),
+                          (31, "Customer Support"), (32, "Compliance")]:
+        rows.append(gap_row_t3(idx, fn_label, polarity="cost",
+                               notes="Function-level Personnel not in BDM"))
+
+    # Total Contractors (subtotal + per-function: all GAP — BDM doesn't expose contractors)
+    rows.append(gap_row_t3(33, "Total Contractors", polarity="cost",
+                           notes="Contractors metrics not in BDM"))
+    for idx, fn_label in [(34, "Product Development"), (35, "S&M"), (36, "G&A"),
+                          (37, "Customer Support"), (38, "Compliance")]:
+        rows.append(gap_row_t3(idx, fn_label, polarity="cost",
+                               notes="Function-level Contractors not in BDM"))
+
+    # SBC subtotal — single metric available
+    rows.append(metric_t3(39, "SBC", "sbc_opex", is_total=True))
+    # Per-function SBC: GAP
+    for idx, fn_label in [(40, "Product Development"), (41, "S&M"), (42, "G&A"),
+                          (43, "Customer Support"), (44, "Compliance")]:
+        rows.append(gap_row_t3(idx, fn_label, polarity="cost",
+                               notes="Function-level SBC not in BDM"))
+
+    return rows
+
+
+def derived_sum_row_t3(idx: int, label: str, components: list[str],
+                       raw: dict, anchors: dict, polarity: str) -> RowSpec:
+    """Like derived_sum_row but returns 3-cell Table 3 cells."""
+    periods = sum_compute(components, raw, anchors)
+    cells = cells_for_metric_t3(periods)
+    return RowSpec(row_idx=idx, label=label, cells=cells, polarity=polarity,
+                   notes=f"Derived: sum of {', '.join(components)}")
+
+
+# ============================================================
+# Main packet assembly + CLI
+# ============================================================
+
 def assemble_packet(raw: dict, report_month: str) -> dict:
     anchors = compute_anchors(report_month)
-    rows = build_block_pl_overview(raw, anchors)
+    block_rows = build_block_pl_overview(raw, anchors)
+    stnd_rows = build_stnd_pl_double_click(raw, anchors)
 
-    gaps = [r.label for r in rows if r.is_gap]
+    gaps = list({r.label for r in (block_rows + stnd_rows) if r.is_gap})
     return {
         "meta": {
             "report_month": report_month,
@@ -661,7 +775,11 @@ def assemble_packet(raw: dict, report_month: str) -> dict:
         "anchors": anchors,
         "block_pl_overview": {
             "table_index": 2,
-            "rows": [r.to_json() for r in rows],
+            "rows": [r.to_json() for r in block_rows],
+        },
+        "stnd_pl_double_click": {
+            "table_index": 3,
+            "rows": [r.to_json() for r in stnd_rows],
         },
         "gaps": gaps,
     }
@@ -682,11 +800,12 @@ def main(argv: list[str] | None = None) -> int:
     with open(args.out, "w") as f:
         json.dump(packet, f, indent=2, default=str)
 
-    n_rows = len(packet["block_pl_overview"]["rows"])
+    n_t2 = len(packet["block_pl_overview"]["rows"])
+    n_t3 = len(packet["stnd_pl_double_click"]["rows"])
     n_gaps = len(packet["gaps"])
-    print(f"Wrote {args.out}: {n_rows} rows, {n_gaps} gaps")
+    print(f"Wrote {args.out}: Block P&L {n_t2} rows, Stnd P&L {n_t3} rows, {n_gaps} unique gaps")
     if packet["gaps"]:
-        print("Gaps: " + ", ".join(packet["gaps"]))
+        print("Gaps: " + ", ".join(sorted(packet["gaps"])))
     return 0
 
 
