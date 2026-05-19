@@ -361,7 +361,7 @@ Identical to Table 5 (Cash App detail). Rate row R19 % Margin uses pts deltas in
 | Row | Auto | Manual | Notes |
 |---|---|---|---|
 | R02 NVA Actual | $3.46B (Mar'26) | $3.42B | ~$40M diff — within tolerance after applying one-month lag fix |
-| R02/R03/R04 YoY % | 19% / 17% / 23% | 7.3% / 8.0% / 5.9% | **Open question** — manual YoY for NVA family diverges from month-over-month. May use TTM or different attribution period. Confirm with Nick. |
+| R02/R03/R04 YoY % | 19% / 17% / 23% | 7.3% / 8.0% / 5.9% | **Open — base data matches**. Nick confirmed Mar'26 = $3.464B and Mar'25 = $2.919B (BDM agrees). True month-over-month YoY = (3.464 − 2.919) / 2.919 = 18.7%. The 7.3% in manual MRP must come from a different YoY formula (TTM rolling, attribution-period match, or seasonally-adjusted basis). **Open question to resolve in a future session** — until then, automated renders the mathematical YoY and flags the divergence. |
 | R09 US Payments Actual | $195M | $197M | Within $2M tolerance |
 | R09 US Payments YoY | (6.0%) | (3.1%) | Definitional mismatch on US Payments |
 | R10 Intl Payments YoY | 74% | 45% | Significant — intl-entity GP grew faster than intl Payments specifically |
