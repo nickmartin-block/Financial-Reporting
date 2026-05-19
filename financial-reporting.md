@@ -5,7 +5,7 @@ depends-on: [gdrive, sheet-to-doc-table]
 allowed-tools: []
 metadata:
   author: nmart
-  version: "1.3.0"
+  version: "1.4.0"
   status: "active"
 ---
 
@@ -90,12 +90,20 @@ Key metric labels are always **bold** in fact lines. This includes metric names 
 - Always include +/- on variances and YoY growth rates
 - Text negatives: hyphen (-$38M, -1.6%)
 - Tables/charts negatives: parentheses (($38M), (5.4 bps))
+- **Basis point deltas in body text: always explicit sign.** Write "-4 bps below AP" or "+4 bps above AP" — never "4 bps below AP" (missing sign). The sign reinforces direction even with the directional word.
 
 **Percentage Points**
 - Always plural: "pts" — never "pt", "pp", or "percentage points"
 - Always a space between the number and "pts": +5 pts, -2.3 pts
 - Follow the same rounding as percentages: one decimal if < 10 (+2.4 pts), no decimal if ≥ 10 (+12 pts)
 - Margin changes: "+X pts of margin expansion" or "-X pts of margin compression"
+- **When to use pts vs. %:** Use "pts" whenever comparing two rates — growth rates, margins, Rule of 40, or any YoY% vs. a benchmark YoY%. Use "%" only for deltas computed as (Pacing Value - Benchmark Value) / Benchmark Value. Example: "GPV growth +0.9 pts above consensus" (comparing 13.1% YoY vs. 12.2% consensus YoY), NOT "+0.9% above consensus." This prevents confusion between percentage-point differences and absolute-value percentage deltas.
+- **Spread phrasing**: When stating the relationship between two YoY growth rates within the same brand/section (e.g., Square GP growth vs. Square GPV growth), use "([+/-X] pts spread on [the faster-growing rate's name])" with explicit sign. Compute sign as (GP YoY − GPV YoY) — negative when GP grows slower. Example: `(-4.2 pts spread on GPV growth)`. Avoid "above/below GPV growth" phrasing.
+
+**Rounding precision**
+- Compute deltas from raw cell values, then round at display time per the rule. Do not round inputs before division.
+- Example: $92M / $3,040M = 3.026% → display "3.0%" (1 decimal, <10%). NOT "3.1%".
+- A 0.1% error compounds across the report and triggers manual corrections during review.
 
 **Margin Presentation**
 - State margin levels inline: "$588M (20% margin)"
@@ -192,10 +200,20 @@ Always use full product names. Never abbreviate product names or assume what an 
 
 ---
 
-## Deviations — "Nick to fill out"
-After any fact line where driver context is needed, insert on a new line:
-`Nick to fill out` — formatted red (hex #ea4335) in the Google Doc.
-Do NOT fill in the reason yourself.
+## Deviations — driver commentary
+After any fact line where driver context is needed:
+
+1. **First**, check if Slack pacing threads from key contributors are available in `#fpa-ir-planning-reporting`:
+   - James Erbe — Square pacing narrative
+   - Matthew Jansing — Cash pacing
+   - Nick Martin — AOI pacing
+2. **If available**, fold the relevant commentary into the report selectively:
+   - AOI commentary → structured `**Conservatism:**` and `**Risks:**` sub-bullets under the Profitability paragraph
+   - International GPV FX caveat → inline italic clause appended to the Intl GPV bullet
+   - Tariff/hardware caveats → inline italic in the Square GP bullet; reference back with "As noted above, ..." in the Profitability paragraph
+   - Do NOT insert standalone "Driver narrative:" paragraphs for Square/Cash — brand stories live in their dedicated Overview sections and the linked underlying decks
+   - No attribution; synthesize, do not copy verbatim
+3. **If unavailable** (or for any fact line still missing driver context), insert on a new line: `Nick to fill out` — formatted red (hex #ea4335) in the Google Doc. Do NOT fill in the reason yourself.
 
 ---
 
