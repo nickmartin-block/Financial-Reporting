@@ -201,3 +201,95 @@ Per `financial-reporting.md` + Flash v2.0:
 3. **R27 Adj EBITDA:** confirm BDM has it or derive from D&A.
 4. **R27-R44 Table 3 Personnel/Contractors/SBC by function:** confirm gap or find metrics.
 5. **QTD Pace contingency:** confirm $20M is the right number for April. Document divergence.
+
+---
+
+## Table 5 — Cash App detail (31 rows × 5 cols)
+
+**Test tab Table 5** (5th table in Test tab, startIndex ~3753 as of 2026-05-19). Manual MRP reference lives at **MRP tab Table 4** (note: table ordering differs between Test tab and MRP tab — MRP tab has Brand P&Ls (3) → Cash App (4) → Square (5) → Other Brands (6) → Stnd P&L (7) → Appendix II (8)).
+
+### Column layout
+
+| Col | Header | Period | Comparison |
+|---|---|---|---|
+| 0 | label | — | — |
+| 1 | Actual | report month (Apr'26) | absolute |
+| 2 | $ vs. Q2OL | `actual - ol` | $ delta |
+| 3 | % vs. Q2OL | `(actual - ol) / abs(ol)` | % delta |
+| 4 | YoY % Growth | `(actual - yoy_prior) / abs(yoy_prior)` | % delta |
+
+For rate rows (R30 % Margin): col 1 = rate (`fmt_actual` with `scale="pct"`); col 2 empty; cols 3+4 = pts deltas (`fmt_pts`).
+
+### Row map (29 data rows; R00/R01 are doc-level headers)
+
+| R | Label | Source / Derivation |
+|---|---|---|
+| R02 | Cash App Actives | BDM `financial__cash_app_total_actives`. **No outlook metric in BDM** → cols 2+3 render `[GAP]`. |
+| R03 | Primary Banking Actives | BDM `product__banking__cash_app_primary_banking_actives`. **No outlook metric** → cols 2+3 `[GAP]`. |
+| R04 | **Core Cash App** (subtotal) | **DERIVED:** sum of R05+R06+R07+R08+R09+R10+R11+R12 (8 itemized core Cash App products). Confirmed by Nick 2026-05-19. |
+| R05 | ATM | BDM `pnl_gross_profit_actual` `product='3044-Cash App ATM Fees'` |
+| R06 | Bitcoin Buy/Sell | product=`3041-Cash App Bitcoin` |
+| R07 | Bitcoin Withdrawal Fees | product=`3049-Cash App Bitcoin Withdrawal Fee` |
+| R08 | Business Accounts | product=`1310-Cash App Processing` |
+| R09 | Cash App Card | **DERIVED:** sum of products `3040-Cash Banking Services` + `3057-Cash Gift Card` |
+| R10 | Instant Deposit | product=`1340-Cash App Instant Settlement` (NOT 1341 — that lives in R17 Other) |
+| R11 | Interest Income | **DERIVED:** sum of products `3046-Cash App Balance Interest` + `3058-Savings Yield` |
+| R12 | Paper Money Deposits | product=`3050-Paper Money Deposits` |
+| R13 | **Lending** (subtotal) | **DERIVED:** sum of R14+R15. Has values — NOT just a section header. |
+| R14 | Borrow | product=`3047-Cash App Borrow` |
+| R15 | Post-Purchase | product=`3055-Cash Retro` (confirmed by Nick — Test tab label "Post-Purchase" maps to EDM "Cash Retro") |
+| R16 | Cash App Pay | product=`1312-Cash App Pay` (EDM BU=Commerce but Test tab places under Cash App section) |
+| R17 | Other** | **DERIVED:** sum of EDM "Other - Cash App" Topline products: `1311+1313+1341+3045+3051+3052+3053+3054+3056`. Silently excludes 3043/3048/5040 (absent from Apr'26 product fetch). |
+| R18 | **Cash App GAAP Gross Profit** (subtotal) | **DERIVED:** R04 + R13 + R16 + R17. Cross-check: should equal `cash_app_pnl_total_gp_actual − afterpay_pnl_total_gp_actual` within ~$1M. |
+| R19 | **Afterpay** (subtotal) | **DERIVED:** sum of R20+R21+R22+R23 (BNPL items only — excludes R24, R25, and 3059 Pre-purchase BNPL). Per manual MRP convention. |
+| R20 | Core BNPL | product=`3070-Core Buy Now Pay Later` (NOT including 3059 Pre-purchase BNPL — manual treats 3059 as outside-table residual) |
+| R21 | Gift Card | product=`3077-Afterpay Giftcards` |
+| R22 | Pay Monthly | product=`3073-Pay Monthly` |
+| R23 | Plus Card | product=`3074-Plus Card` |
+| R24 | Commerce Other* | **DERIVED:** sum of `3071-Touch Pay Now` + `3072-Afterpay Whole Loan Sales` + `3076-SUP in Cash` |
+| R25 | SUP Ads | product=`3075-Afterpay SUP Ads` |
+| R26 | **Commerce GAAP Gross Profit** (subtotal) | **DERIVED:** sum of R20+R21+R22+R23+R24+R25. Cross-check: ~$0.6M short of `afterpay_pnl_total_gp_actual` due to 3059 Pre-purchase BNPL not appearing on table. |
+| R27 | **Total GAAP Gross Profit** (subtotal) | **DERIVED:** R18 + R26. Cross-check: equals `cash_app_pnl_total_gp_actual` within rounding. |
+| R28 | Variable Opex | **GAP — no per-brand Variable Opex metric in BDM.** Block-level `pnl_total_variable_operational_costs` has no `product_brand` data despite the dim being listed. Manual MRP shows $265M Apr'26 (Hyperion direct). |
+| R29 | Variable Profit | **GAP** — depends on Variable Opex. Manual MRP shows $388M Apr'26. |
+| R30 | % Margin | **GAP** — depends on Variable Profit. Manual MRP shows 59.4% Apr'26. |
+
+### Product mapping source
+
+The product code → MRP row mapping comes from the **EDM Mapping Index** G-sheet (per `reference_edm_product_mapping` memory). Cols AH (Product Code) and AL (Topline Categorization) drive the rollup. Long-term: this should become a `sq agent-tools` skill to eliminate the manual sheet round-trip.
+
+### BDM sources (single fetches; route per row in builder)
+
+| Metric | Purpose |
+|---|---|
+| `financial__profit_and_loss__pnl_gross_profit_actual` dims=[product] | Per-product GP actual (Apr'26 + Apr'25) |
+| `financial__profit_and_loss__pnl_gross_profit_outlook` dims=[product] filters={scenario: Q2 Outlook} | Per-product GP outlook (Apr'26) |
+| `financial__profit_and_loss__cash_app_pnl_total_gp_actual` | R27 cross-check anchor (Apr'26, Apr'25) |
+| `financial__afterpay_pnl_total_gp_actual` | R26 cross-check anchor (Apr'26, Apr'25). Note: covers 8 Afterpay products incl. 3059 Pre-purchase BNPL. |
+| `financial__cash_app_total_actives` | R02 (Apr'26, Apr'25) |
+| `product__banking__cash_app_primary_banking_actives` | R03 (Apr'26, Apr'25) |
+
+### Confirmed gaps (Apr'26)
+
+| Row | Gap | Manual MRP value (reference only) |
+|---|---|---|
+| R02 cols 2+3 | No actives outlook in BDM | (0.6M) / (1.0%) |
+| R03 cols 2+3 | Same | 0.1M / 0.9% |
+| R28 all cols | No per-brand Variable Opex in BDM | $265M / $13M / 5% / 97% |
+| R29 all cols | Derived from Variable Opex | $388M / $3M / 1% / 11% |
+| R30 all cols | Derived from Variable Profit | 59.4% / "" / -1pp / -12.8pp |
+
+### Bold rows (populator applies bold)
+
+R04 Core Cash App, R13 Lending, R18 Cash App GAAP GP, R19 Afterpay, R26 Commerce GAAP GP, R27 Total GAAP GP, R28 Variable Opex (if populated), R29 Variable Profit, R30 % Margin.
+
+### Reconciliation vs manual MRP (Apr'26)
+
+| Row | Automated | Manual | Match |
+|---|---|---|---|
+| R04 Core Cash App | $351M / $18M / 5.4% / 5.4% | $351M / $18M / 5.4% / 5.4% | ✓ exact |
+| R13 Lending | $188M / ($5.4M) / (2.8%) / 265% | $188M / ($5.4M) / (3%) / 265% | ✓ ±1pt decimal rounding |
+| R18 Cash App GAAP GP | $555M / $15M / 2.7% / 39% | $555M / $15M / 2.8% / 39% | ✓ |
+| R19 Afterpay | $82M / ($1.0M) / (1.3%) / 20% | $82M / ($1.1M) / (1.3%) / 22% | ≈ small composition diff (3059) |
+| R26 Commerce GAAP GP | $98M / $0.9M / 1.0% / 15% | $98M / $0.9M / 1.0% / 15% | ✓ exact |
+| R27 Total GAAP GP | $653M / $16M / 2.5% / 35% | $653M / $16M / 2.5% / 35% | ✓ exact |

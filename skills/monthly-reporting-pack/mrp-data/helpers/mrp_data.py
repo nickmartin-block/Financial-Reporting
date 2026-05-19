@@ -751,16 +751,211 @@ def derived_sum_row_t3(idx: int, label: str, components: list[str],
 
 
 # ============================================================
+# Cash App detail (Table 5) builder — 31x5 layout
+# Cols: [label, Actual, $ vs. Q2OL, % vs. Q2OL, YoY % Growth]
+# ============================================================
+
+def cells_for_metric_t5(p: dict, scale: str = "auto") -> list[CellSpec]:
+    """4 cells for a $-valued Table 5 row: [actual, vs_ol_dollar, vs_ol_pct, yoy_pct]."""
+    actual = p.get("actual")
+    ol = p.get("ol")
+    yoy_prior = p.get("yoy_prior")
+    vs_ol_dol = variance(actual, ol)
+    vs_ol_pct = yoy(actual, ol)  # (actual - ol) / abs(ol) — same shape as YoY
+    yoy_pct = yoy(actual, yoy_prior)
+    return [
+        CellSpec(actual, fmt_actual(actual, scale=scale), "actual"),
+        CellSpec(vs_ol_dol, fmt_delta_dollar(vs_ol_dol), "vs_ol_dollar"),
+        CellSpec(vs_ol_pct, fmt_pct(vs_ol_pct), "vs_ol_pct"),
+        CellSpec(yoy_pct, fmt_pct(yoy_pct), "yoy_pct"),
+    ]
+
+
+def cells_for_actives_t5(p: dict) -> list[CellSpec]:
+    """Actives row: [count, [GAP], [GAP], yoy_pct]. No outlook metric in BDM."""
+    actual = p.get("actual")
+    yoy_pct = yoy(actual, p.get("yoy_prior"))
+    return [
+        CellSpec(actual, fmt_actual(actual, scale="count"), "actual"),
+        CellSpec(None, "[GAP]", "vs_ol_dollar"),
+        CellSpec(None, "[GAP]", "vs_ol_pct"),
+        CellSpec(yoy_pct, fmt_pct(yoy_pct), "yoy_pct"),
+    ]
+
+
+def cells_for_rate_t5(actual: float | None, ol: float | None,
+                      yoy_prior: float | None) -> list[CellSpec]:
+    """Rate row (e.g., % Margin): [rate, '', pts_vs_ol, pts_yoy].
+    Col 2 ($ vs OL) is empty for rates; cols 3+4 carry pts deltas."""
+    vs_ol_pts = variance(actual, ol)
+    yoy_pts = variance(actual, yoy_prior)
+    return [
+        CellSpec(actual, fmt_actual(actual, scale="pct"), "actual"),
+        CellSpec(None, EMPTY, "vs_ol_dollar"),
+        CellSpec(vs_ol_pts, fmt_pts(vs_ol_pts), "pts"),
+        CellSpec(yoy_pts, fmt_pts(yoy_pts), "pts"),
+    ]
+
+
+def gap_row_t5(idx: int, label: str, polarity: str = "revenue",
+               is_total: bool = False, notes: str = "DATA GAP") -> RowSpec:
+    cells = [CellSpec(None, "[GAP]", "actual") for _ in range(4)]
+    return RowSpec(row_idx=idx, label=label, cells=cells, is_gap=True,
+                   polarity=polarity, is_total=is_total, notes=notes)
+
+
+def section_row_t5(idx: int, label: str) -> RowSpec:
+    cells = [CellSpec(None, EMPTY, "actual") for _ in range(4)]
+    return RowSpec(row_idx=idx, label=label, cells=cells, is_section_header=True)
+
+
+def fetch_periods_t5(raw: dict, metric: str, report_month: str, yoy_month: str) -> dict:
+    """Table 5 needs only actual/ol/yoy_prior (no QTD)."""
+    return {
+        "actual": get_monthly(raw, metric, report_month, "actual"),
+        "ol": get_monthly(raw, metric, report_month, "ol"),
+        "yoy_prior": get_monthly(raw, metric, yoy_month, "actual"),
+    }
+
+
+def sum_periods_t5(periods_list: list[dict]) -> dict:
+    """Sum a list of period dicts; None propagates per key."""
+    out = {"actual": 0.0, "ol": 0.0, "yoy_prior": 0.0}
+    present = {k: True for k in out}
+    for p in periods_list:
+        for k in out:
+            v = p.get(k)
+            if v is None:
+                present[k] = False
+            else:
+                out[k] += v
+    return {k: (out[k] if present[k] else None) for k in out}
+
+
+def build_cash_app_detail(raw: dict, report_month: str = "2026-04",
+                          yoy_month: str = "2025-04") -> list[RowSpec]:
+    """29 data rows of Test tab Table 5 (Cash App detail).
+    Rows 0,1 are header rows (April 2026 / column titles); built externally if needed."""
+    rows: list[RowSpec] = []
+
+    def metric_row(idx: int, label: str, metric: str,
+                   polarity: str = "revenue", is_total: bool = False, scale: str = "auto") -> RowSpec:
+        p = fetch_periods_t5(raw, metric, report_month, yoy_month)
+        return RowSpec(row_idx=idx, label=label, cells=cells_for_metric_t5(p, scale=scale),
+                       polarity=polarity, is_total=is_total)
+
+    def actives(idx: int, label: str, metric: str) -> RowSpec:
+        p = fetch_periods_t5(raw, metric, report_month, yoy_month)
+        return RowSpec(row_idx=idx, label=label, cells=cells_for_actives_t5(p),
+                       polarity="revenue",
+                       notes="No outlook metric in BDM; vs Q2OL cols render [GAP]")
+
+    def derived(idx: int, label: str, positive: list[str], negative: list[str],
+                polarity: str = "revenue", is_total: bool = False) -> RowSpec:
+        pos = sum_periods_t5([fetch_periods_t5(raw, m, report_month, yoy_month) for m in positive])
+        neg = sum_periods_t5([fetch_periods_t5(raw, m, report_month, yoy_month) for m in negative]) \
+              if negative else {"actual": 0.0, "ol": 0.0, "yoy_prior": 0.0}
+        per = {k: (pos[k] - neg[k]) if (pos[k] is not None and neg[k] is not None) else None
+               for k in ["actual", "ol", "yoy_prior"]}
+        cells = cells_for_metric_t5(per)
+        note = f"Derived: + {' + '.join(positive)}" + (f" - {' - '.join(negative)}" if negative else "")
+        return RowSpec(row_idx=idx, label=label, cells=cells, polarity=polarity,
+                       is_total=is_total, notes=note)
+
+    # Cash App sub-product metric names (R05-R12, in order)
+    CA_CORE_METRICS = ["ca_atm_gp", "ca_btc_buy_sell_gp", "ca_btc_withdrawal_fees_gp",
+                       "ca_business_accounts_gp", "ca_card_gp", "ca_instant_deposit_gp",
+                       "ca_interest_income_gp", "ca_paper_money_gp"]
+    # Afterpay BNPL sub-products (R20-R23) — the items rolled into R19 Afterpay subtotal
+    AP_BNPL_METRICS = ["ap_core_bnpl_gp", "ap_gift_card_gp", "ap_pay_monthly_gp", "ap_plus_card_gp"]
+
+    # R02 Cash App Actives
+    rows.append(actives(2, "Cash App Actives", "ca_total_actives"))
+    # R03 Primary Banking Actives
+    rows.append(actives(3, "Primary Banking Actives", "ca_primary_banking_actives"))
+    # R04 Core Cash App = subtotal of R05-R12 (per MRP convention — 8 itemized core CA products)
+    rows.append(derived(4, "Core Cash App", positive=CA_CORE_METRICS, negative=[]))
+    # R05-R12 Cash App sub-products
+    rows.append(metric_row(5, "ATM", "ca_atm_gp"))
+    rows.append(metric_row(6, "Bitcoin Buy/Sell", "ca_btc_buy_sell_gp"))
+    rows.append(metric_row(7, "Bitcoin Withdrawal Fees", "ca_btc_withdrawal_fees_gp"))
+    rows.append(metric_row(8, "Business Accounts", "ca_business_accounts_gp"))
+    rows.append(metric_row(9, "Cash App Card", "ca_card_gp"))
+    rows.append(metric_row(10, "Instant Deposit", "ca_instant_deposit_gp"))
+    rows.append(metric_row(11, "Interest Income", "ca_interest_income_gp"))
+    rows.append(metric_row(12, "Paper Money Deposits", "ca_paper_money_gp"))
+    # R13 Lending = subtotal of R14+R15 (per MRP convention — has values, not just header)
+    rows.append(derived(13, "Lending", positive=["ca_borrow_gp", "ca_post_purchase_gp"], negative=[]))
+    # R14 Borrow
+    rows.append(metric_row(14, "Borrow", "ca_borrow_gp"))
+    # R15 Post-Purchase (= 3055 Cash Retro per Nick)
+    rows.append(metric_row(15, "Post-Purchase", "ca_post_purchase_gp"))
+    # R16 Cash App Pay
+    rows.append(metric_row(16, "Cash App Pay", "ca_pay_gp"))
+    # R17 Other** (EDM 'Other - Cash App' topline sum)
+    rows.append(metric_row(17, "Other**", "ca_other_gp"))
+    # R18 Cash App GAAP GP = R04 (Core) + R13 (Lending) + R16 (CA Pay) + R17 (Other)
+    rows.append(derived(18, "Cash App GAAP Gross Profit",
+                        positive=CA_CORE_METRICS + ["ca_borrow_gp", "ca_post_purchase_gp",
+                                                     "ca_pay_gp", "ca_other_gp"],
+                        negative=[], is_total=True))
+    # R19 Afterpay = subtotal of R20+R21+R22+R23 (BNPL items only — excludes R24, R25 per MRP)
+    rows.append(derived(19, "Afterpay", positive=AP_BNPL_METRICS, negative=[]))
+    # R20-R25 Afterpay sub-products
+    rows.append(metric_row(20, "Core BNPL", "ap_core_bnpl_gp"))
+    rows.append(metric_row(21, "Gift Card", "ap_gift_card_gp"))
+    rows.append(metric_row(22, "Pay Monthly", "ap_pay_monthly_gp"))
+    rows.append(metric_row(23, "Plus Card", "ap_plus_card_gp"))
+    rows.append(metric_row(24, "Commerce Other*", "ap_commerce_other_gp"))
+    rows.append(metric_row(25, "SUP Ads", "ap_sup_ads_gp"))
+    # R26 Commerce GAAP GP = sum of R20-R25 (NOT afterpay_total metric — slight reconciliation
+    # diff of ~$0.6M with brand metric due to 3059 Pre-purchase BNPL not appearing on table)
+    rows.append(derived(26, "Commerce GAAP Gross Profit",
+                        positive=AP_BNPL_METRICS + ["ap_commerce_other_gp", "ap_sup_ads_gp"],
+                        negative=[], is_total=True))
+    # R27 Total GAAP GP = R18 + R26 (cross-check: equals cash_app_brand_total_gp within rounding)
+    rows.append(derived(27, "Total GAAP Gross Profit",
+                        positive=CA_CORE_METRICS + ["ca_borrow_gp", "ca_post_purchase_gp",
+                                                     "ca_pay_gp", "ca_other_gp"] +
+                                 AP_BNPL_METRICS + ["ap_commerce_other_gp", "ap_sup_ads_gp"],
+                        negative=[], is_total=True))
+    # R28 Variable Opex — GAP (no per-brand metric in BDM; manual MRP uses Hyperion direct)
+    rows.append(gap_row_t5(28, "Variable Opex", polarity="cost",
+                           notes="BDM has no per-brand Variable Opex; manual MRP $265M (Apr'26) via Hyperion"))
+    # R29 Variable Profit — GAP (depends on Variable Opex)
+    rows.append(gap_row_t5(29, "Variable Profit", polarity="revenue", is_total=True,
+                           notes="Depends on Variable Opex (GAP); manual MRP $388M (Apr'26)"))
+    # R30 % Margin — GAP rate row (depends on Variable Profit). Uses rate-row cell layout
+    # (col 2 empty, cols 3+4 pts deltas) when populated.
+    rows.append(gap_row_t5(30, "% Margin", polarity="rate",
+                           notes="Depends on Variable Profit (GAP); manual MRP 59.4% (Apr'26)"))
+
+    return rows
+
+
+# ============================================================
 # Main packet assembly + CLI
 # ============================================================
 
-def assemble_packet(raw: dict, report_month: str) -> dict:
+def assemble_packet(raw: dict, report_month: str,
+                    cash_app_raw: dict | None = None) -> dict:
     anchors = compute_anchors(report_month)
     block_rows = build_block_pl_overview(raw, anchors)
     stnd_rows = build_stnd_pl_double_click(raw, anchors)
 
-    gaps = list({r.label for r in (block_rows + stnd_rows) if r.is_gap})
-    return {
+    all_rows = block_rows + stnd_rows
+    cash_app_block = None
+    if cash_app_raw is not None:
+        ca_rows = build_cash_app_detail(
+            cash_app_raw,
+            report_month=report_month,
+            yoy_month=anchors["yoy_prior_month"],
+        )
+        cash_app_block = {"table_index": 5, "rows": [r.to_json() for r in ca_rows]}
+        all_rows = all_rows + ca_rows
+
+    gaps = list({r.label for r in all_rows if r.is_gap})
+    packet = {
         "meta": {
             "report_month": report_month,
             "quarter": anchors["quarter"],
@@ -783,27 +978,39 @@ def assemble_packet(raw: dict, report_month: str) -> dict:
         },
         "gaps": gaps,
     }
+    if cash_app_block is not None:
+        packet["cash_app_detail"] = cash_app_block
+    return packet
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="MRP data layer helper")
     p.add_argument("--month", required=True, help="Report month YYYY-MM")
-    p.add_argument("--raw", required=True, help="Path to raw JSON input")
+    p.add_argument("--raw", required=True, help="Path to raw JSON input (Tables 2+3)")
+    p.add_argument("--cash-app-raw", default=None,
+                   help="Optional path to raw JSON for Cash App detail (Table 5)")
     p.add_argument("--out", required=True, help="Path to output JSON packet")
     args = p.parse_args(argv)
 
     with open(args.raw) as f:
         raw = json.load(f)
 
-    packet = assemble_packet(raw, args.month)
+    cash_app_raw = None
+    if args.cash_app_raw:
+        with open(args.cash_app_raw) as f:
+            cash_app_raw = json.load(f)
+
+    packet = assemble_packet(raw, args.month, cash_app_raw=cash_app_raw)
 
     with open(args.out, "w") as f:
         json.dump(packet, f, indent=2, default=str)
 
     n_t2 = len(packet["block_pl_overview"]["rows"])
     n_t3 = len(packet["stnd_pl_double_click"]["rows"])
+    n_t5 = len(packet["cash_app_detail"]["rows"]) if "cash_app_detail" in packet else 0
     n_gaps = len(packet["gaps"])
-    print(f"Wrote {args.out}: Block P&L {n_t2} rows, Stnd P&L {n_t3} rows, {n_gaps} unique gaps")
+    suffix = f", Cash App {n_t5} rows" if n_t5 else ""
+    print(f"Wrote {args.out}: Block P&L {n_t2} rows, Stnd P&L {n_t3} rows{suffix}, {n_gaps} unique gaps")
     if packet["gaps"]:
         print("Gaps: " + ", ".join(sorted(packet["gaps"])))
     return 0

@@ -121,6 +121,40 @@ Helper handles:
 
 ---
 
+## Step 4b — Populate Table 5 (Cash App detail, 31×5)
+
+Run only when packet includes `cash_app_detail` block (i.e. when `mrp_data.py` was invoked with `--cash-app-raw`).
+
+```bash
+# 4b-i. Values pass
+python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_cash_app_detail.py \
+  --packet /tmp/mrp_out_{YYYY_MM}.json \
+  --doc /tmp/mrp_doc_v2.json \
+  --tab {TAB_ID} \
+  --pass values \
+  | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
+
+# 4b-ii. Re-fetch + colors pass
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID} --include-tabs > /tmp/mrp_doc_v3.json
+python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_cash_app_detail.py \
+  --packet /tmp/mrp_out_{YYYY_MM}.json \
+  --doc /tmp/mrp_doc_v3.json \
+  --tab {TAB_ID} \
+  --pass colors \
+  | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
+```
+
+Helper handles:
+- Cell-index discovery: 31×5 table whose R02 col 0 == "Cash App Actives"
+- Values pass: Roboto 10pt, CENTER, bold for subtotals (R04 Core Cash App, R13 Lending, R18 Cash App GAAP GP, R19 Afterpay, R26 Commerce GAAP GP, R27 Total GAAP GP) + rate row (R30 % Margin)
+- Colors pass: TWO colored cols ($ vs OL + % vs OL); cols 1 (Actual) + 4 (YoY) always black; thresholds ±$0.5M / ±0.5%
+- Gap rendering: per-cell `[GAP]` for R02/R03 cols 2+3 (no actives outlook in BDM); whole-row `[GAP]` for R28/R29/R30 (no per-brand Variable Opex in BDM — Hyperion direct needed for these)
+- Safety: refuses to write to `{TAB_ID}` == `t.ea3bz9hprpol`
+
+See `mrp-data/skills/mrp-data-sourcing.md` Table 5 section for per-row source map + reconciliation against manual MRP.
+
+---
+
 ## Step 5 — Validate
 
 Invoke `/mrp-validate` with the Test tab ID + packet path. See `mrp-validate.md` for details. Calls `validate_block_pl.py` end-to-end against both layers.
