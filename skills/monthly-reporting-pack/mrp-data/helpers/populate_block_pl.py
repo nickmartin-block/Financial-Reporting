@@ -458,17 +458,33 @@ def _emit_color(cell: dict, color: dict, tab_id: str,
 # Request ordering
 # ---------------------------------------------------------------------------
 
-def request_sort_key(req: dict) -> int:
-    """Sort requests ascending by startIndex/location index. Docs API processes
-    in order and auto-shifts later indices for earlier inserts/deletes."""
-    for key in ("deleteContentRange", "insertText", "updateTextStyle", "updateParagraphStyle"):
+def request_sort_key(req: dict) -> tuple[int, int]:
+    """Return (negative_start_index, kind_order) so the requests sort
+    DESCENDING by startIndex, with stable sub-ordering inside a single cell
+    (delete -> insert -> textStyle -> paragraphStyle).
+
+    Descending overall is required because Docs API's batchUpdate processes
+    requests in order and DOES NOT auto-adjust later requests' indices for
+    earlier inserts/deletes. By processing from end-of-doc to start, an
+    insert at index X cannot shift any subsequent (= earlier-in-doc) target.
+    """
+    kind_order = {
+        "deleteContentRange": 0,
+        "insertText": 1,
+        "updateTextStyle": 2,
+        "updateParagraphStyle": 3,
+    }
+    for key, order in kind_order.items():
         if key in req:
             inner = req[key]
             if "range" in inner:
-                return inner["range"].get("startIndex", 0)
-            if "location" in inner:
-                return inner["location"].get("index", 0)
-    return 0
+                idx = inner["range"].get("startIndex", 0)
+            elif "location" in inner:
+                idx = inner["location"].get("index", 0)
+            else:
+                idx = 0
+            return (-idx, order)
+    return (0, 0)
 
 
 # ---------------------------------------------------------------------------
