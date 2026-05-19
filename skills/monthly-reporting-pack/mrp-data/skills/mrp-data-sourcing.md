@@ -71,7 +71,7 @@ Column layout (after the label col):
 | R10 | Variable Operational Costs (total) | BDM `pnl_total_variable_operational_costs_actual` / `_outlook` |
 | R11 | P2P marketing | BDM `pnl_p2p_opex_actual` / `_outlook`. Label says "marketing" but the underlying metric is the P2P line item from Flash convention. |
 | R12 | Risk loss | BDM `pnl_risk_loss_opex_actual` / `_outlook` |
-| R13 | Other variable² | **DERIVED:** `pnl_hardware_logistics_opex_actual` + `pnl_bad_debt_expense_opex_actual` + `pnl_customer_reimbursements_opex_actual`. Matches Flash's "Other (Variable)" rollup. |
+| R13 | Other variable² | **DERIVED as residual:** `pnl_total_variable_operational_costs_actual − pnl_p2p_opex_actual − pnl_risk_loss_opex_actual`. The MRP convention sums the residual variable line items (including Card Issuance + Warehouse Financing on top of HW Logistics + Bad Debt + Customer Reimbursements). Phase 5b Apr'26 verified: sum-of-three = $3.8M vs manual $16M; residual = $16M ✓. |
 | R14 | Acquisition Costs (incl. S&M people) | BDM `pnl_total_acquisition_costs_actual` / `_outlook` |
 | R15 | Fixed Costs (total) | **DERIVED:** `pnl_total_block_gaap_opex_actual − pnl_total_variable_operational_costs_actual − pnl_total_acquisition_costs_actual`. **Do NOT use BDM `pnl_total_fixed_costs_actual`** — that returns ~$504M vs source convention ~$407M. (Flash v2.0 fix.) |
 | R16 | Product development people | BDM `pnl_prod_dev_people_opex_actual` / `_outlook` |

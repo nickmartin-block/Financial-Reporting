@@ -395,10 +395,11 @@ def build_block_pl_overview(raw: dict, anchors: dict) -> list[RowSpec]:
     rows.append(metric_row(10, "Variable Operational Costs", "variable_opex_total", "cost", is_total=True))
     rows.append(metric_row(11, "P2P marketing", "p2p_opex", "cost"))
     rows.append(metric_row(12, "Risk loss", "risk_loss_opex", "cost"))
-    # Other Variable = HW Logistics + Bad Debt + Customer Reimbursements
-    rows.append(derived_sum_row(
+    # Other variable = Total Variable Op Costs - P2P - Risk Loss (residual; matches MRP convention)
+    rows.append(derived_subtract_row(
         idx=13, label="Other variable",
-        components=["hw_logistics_opex", "bad_debt_opex", "customer_reimbursements_opex"],
+        positive=["variable_opex_total"],
+        negative=["p2p_opex", "risk_loss_opex"],
         raw=raw, anchors=anchors, polarity="cost",
     ))
 
