@@ -1040,12 +1040,62 @@ def build_square_detail(raw: dict, report_month: str = "2026-04",
 
 
 # ============================================================
+# Other Brands detail (Table 7) builder — 9x5 layout
+# Cols: [label, Actual, $ vs. Q2OL, % vs. Q2OL, YoY % Growth]
+# ============================================================
+
+def build_other_brands_detail(raw: dict, report_month: str = "2026-04",
+                               yoy_month: str = "2025-04") -> list[RowSpec]:
+    """7 data rows of Test tab Table 7 (Other Brands detail)."""
+    rows: list[RowSpec] = []
+
+    def metric_row(idx: int, label: str, metric: str,
+                   polarity: str = "revenue", is_total: bool = False, scale: str = "auto") -> RowSpec:
+        p = fetch_periods_t5(raw, metric, report_month, yoy_month)
+        return RowSpec(row_idx=idx, label=label, cells=cells_for_metric_t5(p, scale=scale),
+                       polarity=polarity, is_total=is_total)
+
+    def derived(idx: int, label: str, positive: list[str], negative: list[str],
+                polarity: str = "revenue", is_total: bool = False) -> RowSpec:
+        pos = sum_periods_t5([fetch_periods_t5(raw, m, report_month, yoy_month) for m in positive])
+        neg = sum_periods_t5([fetch_periods_t5(raw, m, report_month, yoy_month) for m in negative]) \
+              if negative else {"actual": 0.0, "ol": 0.0, "yoy_prior": 0.0}
+        per = {k: (pos[k] - neg[k]) if (pos[k] is not None and neg[k] is not None) else None
+               for k in ["actual", "ol", "yoy_prior"]}
+        cells = cells_for_metric_t5(per)
+        note = f"Derived: + {' + '.join(positive)}" + (f" - {' - '.join(negative)}" if negative else "")
+        return RowSpec(row_idx=idx, label=label, cells=cells, polarity=polarity,
+                       is_total=is_total, notes=note)
+
+    # R02 TIDAL = TIDAL_BU segment total
+    rows.append(metric_row(2, "TIDAL", "ob_tidal_gp"))
+    # R03 Proto = Proto_BU - Wallet (Bitkey) products → just Mining products (2210 + 3110)
+    rows.append(metric_row(3, "Proto", "ob_proto_gp"))
+    # R04 Bitkey = Wallet products (2200 + 4301 + 4302)
+    rows.append(metric_row(4, "Bitkey", "ob_bitkey_gp"))
+    # R05 Other Brands GAAP GP subtotal = R02 + R03 + R04
+    rows.append(derived(5, "Other Brands GAAP Gross Profit",
+                        positive=["ob_tidal_gp", "ob_proto_gp", "ob_bitkey_gp"], negative=[],
+                        is_total=True))
+    # R06-R08 GAP (no per-brand Variable Opex in BDM)
+    rows.append(gap_row_t5(6, "Variable Opex", polarity="cost",
+                           notes="BDM has no per-brand Variable Opex; manual MRP $0.17M (Apr'26) via Hyperion"))
+    rows.append(gap_row_t5(7, "Variable Profit", polarity="revenue", is_total=True,
+                           notes="Depends on Variable Opex (GAP); manual MRP $1.7M (Apr'26)"))
+    rows.append(gap_row_t5(8, "% Margin", polarity="rate",
+                           notes="Depends on Variable Profit (GAP); manual MRP 90.7% (Apr'26)"))
+
+    return rows
+
+
+# ============================================================
 # Main packet assembly + CLI
 # ============================================================
 
 def assemble_packet(raw: dict, report_month: str,
                     cash_app_raw: dict | None = None,
-                    square_raw: dict | None = None) -> dict:
+                    square_raw: dict | None = None,
+                    other_brands_raw: dict | None = None) -> dict:
     anchors = compute_anchors(report_month)
     block_rows = build_block_pl_overview(raw, anchors)
     stnd_rows = build_stnd_pl_double_click(raw, anchors)
@@ -1070,6 +1120,16 @@ def assemble_packet(raw: dict, report_month: str,
         )
         square_block = {"table_index": 6, "rows": [r.to_json() for r in sq_rows]}
         all_rows = all_rows + sq_rows
+
+    other_brands_block = None
+    if other_brands_raw is not None:
+        ob_rows = build_other_brands_detail(
+            other_brands_raw,
+            report_month=report_month,
+            yoy_month=anchors["yoy_prior_month"],
+        )
+        other_brands_block = {"table_index": 7, "rows": [r.to_json() for r in ob_rows]}
+        all_rows = all_rows + ob_rows
 
     gaps = list({r.label for r in all_rows if r.is_gap})
     packet = {
@@ -1099,6 +1159,8 @@ def assemble_packet(raw: dict, report_month: str,
         packet["cash_app_detail"] = cash_app_block
     if square_block is not None:
         packet["square_detail"] = square_block
+    if other_brands_block is not None:
+        packet["other_brands_detail"] = other_brands_block
     return packet
 
 
@@ -1110,6 +1172,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="Optional path to raw JSON for Cash App detail (Table 5)")
     p.add_argument("--square-raw", default=None,
                    help="Optional path to raw JSON for Square detail (Table 6)")
+    p.add_argument("--other-brands-raw", default=None,
+                   help="Optional path to raw JSON for Other Brands detail (Table 7)")
     p.add_argument("--out", required=True, help="Path to output JSON packet")
     args = p.parse_args(argv)
 
@@ -1124,8 +1188,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.square_raw:
         with open(args.square_raw) as f:
             square_raw = json.load(f)
+    other_brands_raw = None
+    if args.other_brands_raw:
+        with open(args.other_brands_raw) as f:
+            other_brands_raw = json.load(f)
 
-    packet = assemble_packet(raw, args.month, cash_app_raw=cash_app_raw, square_raw=square_raw)
+    packet = assemble_packet(raw, args.month,
+                              cash_app_raw=cash_app_raw, square_raw=square_raw,
+                              other_brands_raw=other_brands_raw)
 
     with open(args.out, "w") as f:
         json.dump(packet, f, indent=2, default=str)
@@ -1134,10 +1204,12 @@ def main(argv: list[str] | None = None) -> int:
     n_t3 = len(packet["stnd_pl_double_click"]["rows"])
     n_t5 = len(packet["cash_app_detail"]["rows"]) if "cash_app_detail" in packet else 0
     n_t6 = len(packet["square_detail"]["rows"]) if "square_detail" in packet else 0
+    n_t7 = len(packet["other_brands_detail"]["rows"]) if "other_brands_detail" in packet else 0
     n_gaps = len(packet["gaps"])
     extras = []
     if n_t5: extras.append(f"Cash App {n_t5} rows")
     if n_t6: extras.append(f"Square {n_t6} rows")
+    if n_t7: extras.append(f"Other Brands {n_t7} rows")
     extras_str = (", " + ", ".join(extras)) if extras else ""
     print(f"Wrote {args.out}: Block P&L {n_t2} rows, Stnd P&L {n_t3} rows{extras_str}, {n_gaps} unique gaps")
     if packet["gaps"]:

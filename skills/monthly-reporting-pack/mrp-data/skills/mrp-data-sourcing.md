@@ -361,7 +361,7 @@ Identical to Table 5 (Cash App detail). Rate row R19 % Margin uses pts deltas in
 | Row | Auto | Manual | Notes |
 |---|---|---|---|
 | R02 NVA Actual | $3.46B (Mar'26) | $3.42B | ~$40M diff — within tolerance after applying one-month lag fix |
-| R02/R03/R04 YoY % | 19% / 17% / 23% | 7.3% / 8.0% / 5.9% | **Open — base data matches**. Nick confirmed Mar'26 = $3.464B and Mar'25 = $2.919B (BDM agrees). True month-over-month YoY = (3.464 − 2.919) / 2.919 = 18.7%. The 7.3% in manual MRP must come from a different YoY formula (TTM rolling, attribution-period match, or seasonally-adjusted basis). **Open question to resolve in a future session** — until then, automated renders the mathematical YoY and flags the divergence. |
+| R02/R03/R04 YoY % | 19% / 17% / 23% | 19% (updated) | **Resolved 2026-05-19** — manual MRP YoY was stale (showed 7.3%); Nick confirmed Mar'26 NVA $3.464B vs Mar'25 $2.919B = 18.7% rounded to 19% is correct. Manual MRP updated to match. Automated stays as-is. |
 | R09 US Payments Actual | $195M | $197M | Within $2M tolerance |
 | R09 US Payments YoY | (6.0%) | (3.1%) | Definitional mismatch on US Payments |
 | R10 Intl Payments YoY | 74% | 45% | Significant — intl-entity GP grew faster than intl Payments specifically |
@@ -383,3 +383,74 @@ R12 Banking, R16 Total Gross Profit, R17 Variable Opex (when populated), R18 Var
 | R13 Loans | $57M / $1.9M / 3.4% / 14% | $57M / $1.9M / 3.4% / 14% | ✓ exact |
 | R14 Business Banking | $38M / $1.4M / 3.8% / 24% | $38M / $1.4M / 3.8% / 24% | ✓ exact |
 | R16 Total GP | $363M / $5.7M / 1.6% / 6.2% | $363M / $5.7M / 1.6% / 6.2% | ✓ exact |
+
+---
+
+## Table 7 — Other Brands detail (9 rows × 5 cols)
+
+**Test tab Table 7** (7th table, startIndex ~6484 as of 2026-05-19). Manual MRP reference at **MRP tab Table 6** (9×5 — same shape).
+
+### Column layout
+
+Identical to Tables 5+6. Rate row R08 % Margin uses pts deltas in cols 3+4; col 2 empty.
+
+### Row map (7 data rows)
+
+| R | Label | Source / Derivation |
+|---|---|---|
+| R02 | TIDAL | BDM `pnl_gross_profit_actual` filter `product_brand=All Other Brands`, `segment=TIDAL_BU`. Outlook: sum of TIDAL products (4201-4208, 5060) from `pnl_gross_profit_outlook` product fetch. |
+| R03 | Proto | **DERIVED:** Proto_BU segment − Wallet products. Sub-products are 2210 (Mining MC1) + 3110 (Bitcoin Mining Hub) — Proto's actual mining business. Wallet products (2200/4301/4302) are reported as Bitkey on R04 even though EDM tags them BU=Proto. |
+| R04 | Bitkey | **DERIVED:** Sum of EDM Proto-BU Wallet products: 2200 (Wallet W1 Hardware) + 4301 (Wallet Software) + 4302 (Wallet Exchange Partner). These are the original Bitkey-predecessor "Wallet" products. Per Nick: 1:1 product mapping. |
+| R05 | **Other Brands GAAP Gross Profit** | **DERIVED:** R02 + R03 + R04. Equals `pnl_gross_profit_actual` filter `product_brand=All Other Brands` total within rounding. |
+| R06 | Variable Opex | **GAP** — no per-brand Variable Opex metric in BDM (same as Cash App + Square). Manual MRP $0.17M Apr'26 via Hyperion. |
+| R07 | Variable Profit | **GAP** — depends on Variable Opex. Manual MRP $1.7M Apr'26. |
+| R08 | % Margin | **GAP** rate row — depends on Variable Profit. Manual MRP 90.7% Apr'26. |
+
+### BDM sources
+
+| Metric | Purpose |
+|---|---|
+| `financial__profit_and_loss__pnl_gross_profit_actual` dim=[segment] filter `product_brand=All Other Brands` | TIDAL_BU + Proto_BU monthly subtotals |
+| `financial__profit_and_loss__pnl_gross_profit_outlook` dim=[product] filter scenario=Q2 Outlook | Per-product outlook for Wallet (2200/4301/4302) + Proto-mining (2210/3110) + TIDAL (4201-4208/5060) |
+| `financial__profit_and_loss__pnl_gross_profit_actual` dim=[product] for Apr'26 + Apr'25 | Bitkey + Proto-mining product values for actual + YoY |
+
+### Bitkey breakdown (Apr'26 verification)
+
+Manual MRP shows Bitkey = ($6.1K). EDM Proto-BU Wallet products sum to exactly that:
+- 2200 Wallet - W1 Hardware: -$6,459.69
+- 4301 Wallet - Software: $0 (absent in Apr'26 fetch)
+- 4302 Wallet - Exchange Partner: $357.33
+- **Sum: -$6,102.36 ≈ manual ($6.1K) ✓**
+
+YoY verification (Apr'25 = $8,454.08 from product 2200 alone): (-6102 − 8454)/8454 = **−172.2%** ≈ manual −172% ✓
+
+### Confirmed gaps
+
+| Row | Gap | Manual MRP value (reference only) |
+|---|---|---|
+| R06 all cols | No per-brand Variable Opex | $0.17M / $0.0M / 5% / (46.4%) |
+| R07 all cols | Derived from R06 | $1.7M / ($0.5M) / (24%) / (51.4%) |
+| R08 all cols | Derived from R07 | 90.7% / "" / -2.4pp / -0.8pp |
+
+### Format/value notes vs manual
+
+| Row | Auto | Manual | Notes |
+|---|---|---|---|
+| R03 Proto %vsOL | 18% (favorable — loss got smaller) | (182%) | **Possible 10x unit error in manual.** Mine: (−1.98 − −2.41) / abs(−2.41) = +18%. Manual shows 182% magnitude with opposite sign. |
+| R04 Bitkey Actual | ($6,102) | ($6.1K) | Locked format uses comma for sub-$100K; manual uses K notation. Same value. |
+| R04 Bitkey $vsOL | ($0.0M) | ($44.8K) | Same: locked $M-scaling rounds to $0.0M; manual uses K notation. |
+| R04 Bitkey YoY | (172%) | -172% | Parens (locked convention) vs minus prefix. Same value. |
+| R03 Proto YoY | "" (div by zero — Apr'25 = $0) | n/a | Same case, different display. |
+
+### Bold rows
+
+R05 Other Brands GAAP Gross Profit, R07 Variable Profit (when populated), R08 % Margin.
+
+### Reconciliation vs manual MRP (Apr'26)
+
+| Row | Auto | Manual | Match |
+|---|---|---|---|
+| R02 TIDAL | $3.8M / ($0.9M) / (19%) / 2.0% | $3.8M / ($0.9M) / (19.0%) / 2.0% | ✓ |
+| R03 Proto Actual + $vsOL | ($2.0M) / $0.4M | ($2.0M) / $0.4M | ✓ exact |
+| R04 Bitkey | ≈ exact | ≈ exact | ✓ (format diffs only) |
+| R05 Subtotal | $1.8M / ($0.5M) / (22%) / (51%) | $1.8M / ($0.5M) / (22%) / (51.0%) | ✓ |

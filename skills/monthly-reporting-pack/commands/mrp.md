@@ -189,6 +189,40 @@ See `mrp-data/skills/mrp-data-sourcing.md` Table 6 section for per-row source ma
 
 ---
 
+## Step 4d — Populate Table 7 (Other Brands detail, 9×5)
+
+Run only when packet includes `other_brands_detail` block (i.e. when `mrp_data.py` was invoked with `--other-brands-raw`).
+
+```bash
+# 4d-i. Values pass
+python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_other_brands_detail.py \
+  --packet /tmp/mrp_out_{YYYY_MM}.json \
+  --doc /tmp/mrp_doc_v4.json \
+  --tab {TAB_ID} \
+  --pass values \
+  | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
+
+# 4d-ii. Re-fetch + colors pass
+cd ~/skills/gdrive && uv run gdrive-cli.py docs get {DOC_ID} --include-tabs > /tmp/mrp_doc_v5.json
+python3 ~/skills/monthly-reporting-pack/mrp-data/helpers/populate_other_brands_detail.py \
+  --packet /tmp/mrp_out_{YYYY_MM}.json \
+  --doc /tmp/mrp_doc_v5.json \
+  --tab {TAB_ID} \
+  --pass colors \
+  | (cd ~/skills/gdrive && uv run gdrive-cli.py docs batch-update {DOC_ID})
+```
+
+Helper handles:
+- Cell-index discovery: 9×5 table whose R02 col 0 == "TIDAL"
+- Values pass: Roboto 10pt, CENTER, bold for subtotals (R05 Other Brands GAAP GP) + Variable Profit/Margin
+- Colors pass: cols 2+3 polarity-aware; thresholds ±$0.5M / ±0.5%
+- Whole-row `[GAP]` for R06-R08 (Variable Opex/Profit/Margin not in BDM per-brand)
+- Safety: refuses to write to `{TAB_ID}` == `t.ea3bz9hprpol`
+
+See `mrp-data/skills/mrp-data-sourcing.md` Table 7 section for per-row source map + reconciliation. Note: TIDAL maps to TIDAL_BU segment; Bitkey is broken out from Proto_BU segment as the 3 "Wallet" products (2200/4301/4302).
+
+---
+
 ## Step 5 — Validate
 
 Invoke `/mrp-validate` with the Test tab ID + packet path. See `mrp-validate.md` for details. Calls `validate_block_pl.py` end-to-end against both layers.
